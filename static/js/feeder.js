@@ -33,31 +33,26 @@ function toggleDiv() {
 }
 
 function feednow() {
-  // You can customize this based on your needs
   fetch("/feed_now", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    // You can pass data if required
-    body: JSON.stringify({
-      // Add any data you want to send in the request body
-    }),
+    body: JSON.stringify({}),
   })
     .then((response) => response.json())
     .then((data) => {
-      // Handle the response from the server
       console.log(data);
-      alert(data.message); // You can customize this based on your needs
+      alert(data.message);
     })
     .catch((error) => {
       console.error("Error:", error);
-      alert("Failed to control servo"); // You can customize this based on your needs
+      alert("Failed to control servo");
     });
 }
 
 $(document).ready(function () {
-  $("#timepicker").mdtimepicker(); //Initializes the time picker
+  $("#timepicker").mdtimepicker();
   addDiv();
 });
 
