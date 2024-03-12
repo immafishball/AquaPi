@@ -1,16 +1,13 @@
 import os
 import cv2
-
+from base_camera import BaseCamera
 
 import argparse
 import numpy as np
 import sys
 import time
 import importlib.util
-
-from picamera2 import Picamera2
 from threading import Thread
-from base_camera import BaseCamera
 
 # Define and parse input arguments
 parser = argparse.ArgumentParser()
@@ -125,24 +122,21 @@ class Camera(BaseCamera):
 
     @staticmethod
     def frames():
+        camera = cv2.VideoCapture(Camera.video_source)
         
-        # Create an instance of the PiCamera2 object
-        cam = Picamera2()
-        ## Initialize and start realtime video capture
-        # Set the resolution of the camera preview
-        cam.preview_configuration.main.size = (imW, imH)
-        cam.preview_configuration.main.format = "RGB888"
-        cam.preview_configuration.controls.FrameRate=30
-        cam.preview_configuration.align()
-        cam.configure("preview")
-        cam.start()
+        # Set the resolution of the video capture
+        camera.set(cv2.CAP_PROP_FRAME_WIDTH, imW)
+        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, imH)
+        
+        if not camera.isOpened():
+            raise RuntimeError('Could not start camera.')
 
         while True:
             # Start timer (for calculating frame rate)
             t1 = cv2.getTickCount()
 
             # Grab frame from video stream
-            frame1 = cam.capture_array()
+            _, frame1 = camera.read()
 
             # Acquire frame and resize to expected shape [1xHxWx3]
             frame = frame1.copy()
