@@ -113,6 +113,11 @@ function addDiv() {
     type: "GET",
     url: "/get_schedules",
     success: function (schedules) {
+      // Sort schedules by time in descending order
+      schedules.sort((a, b) => {
+        return new Date(b.time) - new Date(a.time);
+      });
+
       $("#wrapper").html("");
       schedules.forEach(function (schedule) {
         let ts = schedule.time;
