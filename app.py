@@ -97,6 +97,9 @@ def favicon():
 def not_found(e):
     return render_template("404.html"), 404
 
+@app.route("/dashboard")
+def index():
+    return render_template("dashboard.html")
 
 @app.route("/camera")
 def camera():
