@@ -35,7 +35,7 @@ html {
     align-items: center;
     font-family: "Poppins", sans-serif;
     background: var(--greyLight-1);
-    padding-top: 10%;
+    /*padding-top: 10%;*/
   }
   .components {
     width: 60%;
@@ -298,7 +298,7 @@ html {
     align-items: center;
     font-family: "Poppins", sans-serif;
     background: var(--greyLight-1);
-    padding-top: 10%;
+    /*padding-top: 10%;*/
   }
   .components {
     width: 100%;
