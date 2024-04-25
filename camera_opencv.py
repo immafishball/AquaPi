@@ -1,7 +1,6 @@
 import os
 import cv2
 
-
 import argparse
 import numpy as np
 import sys
@@ -113,7 +112,9 @@ freq = cv2.getTickFrequency()
 class Camera(BaseCamera):
     video_source = 0
     detected_objects = []  # Add this line to store detected objects
-
+    cam = Picamera2()  # Initialize the camera once
+    camera_configured = False  # Track whether the camera is already configured
+    
     def __init__(self):
         if os.environ.get('OPENCV_CAMERA_SOURCE'):
             Camera.set_video_source(int(os.environ['OPENCV_CAMERA_SOURCE']))
@@ -126,23 +127,23 @@ class Camera(BaseCamera):
     @staticmethod
     def frames():
         
-        # Create an instance of the PiCamera2 object
-        cam = Picamera2()
-        ## Initialize and start realtime video capture
-        # Set the resolution of the camera preview
-        cam.preview_configuration.main.size = (imW, imH)
-        cam.preview_configuration.main.format = "RGB888"
-        cam.preview_configuration.controls.FrameRate=30
-        cam.preview_configuration.align()
-        cam.configure("preview")
-        cam.start()
-
+        if not Camera.camera_configured:
+            # Configure the camera only if it's not already configured
+            Camera.cam.set_controls({"AfMode": controls.AfModeEnum.Manual})
+            Camera.cam.preview_configuration.main.size = (imW, imH)
+            Camera.cam.preview_configuration.main.format = "RGB888"
+            Camera.cam.preview_configuration.controls.FrameRate = 30
+            Camera.cam.preview_configuration.align()
+            Camera.cam.configure("preview")
+            Camera.cam.start()
+            Camera.camera_configured = True  # Update the flag
+            
         while True:
             # Start timer (for calculating frame rate)
             t1 = cv2.getTickCount()
 
             # Grab frame from video stream
-            frame1 = cam.capture_array()
+            frame1 = Camera.cam.capture_array()
 
             # Acquire frame and resize to expected shape [1xHxWx3]
             frame = frame1.copy()
@@ -177,15 +178,15 @@ class Camera(BaseCamera):
                     ymax = int(min(imH,(boxes[i][2] * imH)))
                     xmax = int(min(imW,(boxes[i][3] * imW)))
                     
-                    cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (10, 255, 0), 2)
+                    #cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (10, 255, 0), 2)
 
                     # Draw label
                     object_name = labels[int(classes[i])] # Look up object name from "labels" array using class index
                     label = '%s: %d%%' % (object_name, int(scores[i]*100)) # Example: 'person: 72%'
                     labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2) # Get font size
                     label_ymin = max(ymin, labelSize[1] + 10) # Make sure not to draw label too close to top of window
-                    cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
-                    cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
+                    #cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
+                    #cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
                     
                     # Store detected objects
                     detected_object = {'name': object_name, 'confidence': int(scores[i] * 100)}
@@ -204,7 +205,17 @@ class Camera(BaseCamera):
             frame_rate_calc= 1/time1
             
             # Draw framerate in corner of frame
-            cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
+            #cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
+
+            # Check if it's time to capture an image (every 10 minutes)
+            current_time = time.time()
+            if current_time - Camera.last_capture_time >= 60:  # 600 seconds = 10 minutes
+                # Get current date and time in a specific format
+                current_date_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                file_name = f"/home/pi/Projects/AquaPi/Captures/{current_date_time}.jpg"  # Construct file name with current date and time
+                Camera.cam.capture_file(file_name)
+                Camera.last_capture_time = current_time  # Update last capture time
+                print('Capturing image')
 
             # encode as a jpeg image and return it
             yield cv2.imencode('.jpg', frame)[1].tobytes()
