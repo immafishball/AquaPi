@@ -13,6 +13,7 @@ import argparse
 import sys
 
 from picamera2 import Picamera2
+from libcamera import controls
 
 # Define and parse input arguments
 parser = argparse.ArgumentParser()
@@ -53,12 +54,16 @@ while img_exists:
 cam = Picamera2()
 ## Initialize and start realtime video capture
 # Set the resolution of the camera preview
-cam.preview_configuration.main.size = (imW, imH)
-cam.preview_configuration.main.format = "RGB888"
-cam.preview_configuration.controls.FrameRate=30
-cam.preview_configuration.align()
-cam.configure("preview")
+preview_width = imW
+preview_height = int(cam.sensor_resolution[1] * preview_width / cam.sensor_resolution[0])
+preview_config_raw = cam.create_preview_configuration(
+    main={"size": (preview_width, preview_height), "format": "RGB888"},
+    raw={"size": cam.sensor_resolution}
+)
+cam.configure(preview_config_raw)
+cam.set_controls({"AfMode": controls.AfModeEnum.Continuous})
 cam.start()
+
 
 # Initialize display window
 winname = 'Press \"p\" to take a picture!'
@@ -85,3 +90,4 @@ while True:
 
 cv2.destroyAllWindows()
 cap.release()
+
