@@ -1,9 +1,0 @@
-#video-container {
-  text-align: center;
-}
-
-#video-stream {
-  max-width: 100%;
-  height: auto;
-  display: inline-block;
-}
