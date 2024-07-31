@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AquaPi - Setup</title>
+    <link rel="stylesheet" href="../static/css/setup.css" />
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css" />
+  </head>
+  <body>
+    <div id="page" class="site">
+      <div class="container">
+        <div class="form-box">
+          <div class="progress">
+            <div class="logo">
+              <a href="/"><span>Aqua</span>Pi</a>
+            </div>
+            <ul class="progress-steps">
+              <li class="step active">
+                <span>1</span>
+                <p>Calibration<br /><span>25 secs to complete</span></p>
+              </li>
+              <li class="step">
+                <span>2</span>
+                <p>Parameters<br /><span>60 secs to complete</span></p>
+              </li>
+              <li class="step">
+                <span>3</span>
+                <p>Security<br /><span>30 secs to complete</span></p>
+              </li>
+            </ul>
+          </div>
+          <form action="">
+            <div class="form-one form-step active">
+              <div class="bg-svg"></div>
+              <h2>AI</h2>
+              <p>
+                Please check, if the AI has detected the correct type of fish.
+              </p>
+              <div class="w3-main" style="margin-left: 0px; margin-top: 43px">
+                <div class="w3-row-padding w3-margin-bottom">
+                  <div class="w3-twothird">
+                    <div
+                      class="w3-container w3-white w3-hover-shadow w3-border-red w3-bottombar w3-padding-16"
+                    >
+                      <div class="w3-left">
+                        <img src="{{ url_for('static', filename='img/detected-fish.svg') }}" />
+                      </div>
+                      <div class="w3-right">
+                        <h3 id="card-detected-fish">Goldfish</h3>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="w3-third">
+                    <div
+                      class="w3-container w3-white w3-hover-shadow w3-border-blue w3-bottombar w3-padding-16"
+                    >
+                      <div class="w3-left">
+                        <img src="{{ url_for('static', filename='img/percent-sign.svg') }}" />
+                      </div>
+                      <div class="w3-right">
+                        <h3 id="card-confidence-level">--</h3>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="video-container">
+                  <img
+                    id="video-stream"
+                    src="{{ url_for('video_feed') }}"
+                    alt="Video Stream"
+                  />
+                </div>
+              </div>
+            </div>
+            <div class="form-two form-step">
+              <div class="bg-svg"></div>
+              <h2>Fish Environment</h2>
+              <div>
+                <label>Fish Type</label>
+                <select name="fish-type" id="fish-type" disabled>
+                  <option value="">Please select</option>
+                  <option value="Goldfish">Goldfish</option>
+                  <option value="Bangus">Bangus</option>
+                  <option value="Hito">Hito</option>
+                </select>
+              </div>
+              <div class="temp-range">
+                <label>Temperature</label>
+                <div class="grouping">
+                  <input
+                    type="text"
+                    pattern="[0-9]*"
+                    name="temp-min"
+                    value=""
+                    min="0"
+                    max="31"
+                    placeholder="0"
+                  />
+                  <input
+                    type="text"
+                    pattern="[0-9]*"
+                    name="temp-max"
+                    value=""
+                    min="0"
+                    max="12"
+                    placeholder="99"
+                  />
+                </div>
+              </div>
+              <div class="ph-range">
+                <label>pH Level</label>
+                <div class="grouping">
+                  <input
+                    type="text"
+                    pattern="[0-9]*"
+                    name="ph-min"
+                    value=""
+                    min="0"
+                    max="99"
+                    placeholder="0"
+                  />
+                  <input
+                    type="text"
+                    pattern="[0-9]*"
+                    name="ph-max"
+                    value=""
+                    min="0"
+                    max="99"
+                    placeholder="99"
+                  />
+                </div>
+              </div>
+              <div class="do-range">
+                <label>Dissolve Oxygen</label>
+                <div class="grouping">
+                  <input
+                    type="text"
+                    pattern="[0-9]*"
+                    name="do-min"
+                    value=""
+                    min="0"
+                    max="99"
+                    placeholder="0"
+                  />
+                  <input
+                    type="text"
+                    pattern="[0-9]*"
+                    name="do-max"
+                    value=""
+                    min="0"
+                    max="99"
+                    placeholder="99"
+                  />
+                </div>
+              </div>
+            </div>
+            <div class="form-three form-step">
+              <div class="bg-svg"></div>
+              <h2>Security</h2>
+              <div>
+                <label>Username</label>
+                <input type="text" placeholder="Username" />
+              </div>
+              <div>
+                <label>Password</label>
+                <input type="password" placeholder="Password" />
+              </div>
+              <div>
+                <input type="password" placeholder="Confirm Password" />
+              </div>
+              <div class="checkbox">
+                <input type="checkbox" />
+                <label>Show Password</label>
+              </div>
+            </div>
+            <div class="btn-group">
+              <button type="button" class="btn-prev" disabled>Back</button>
+              <button type="button" class="btn-next">Next Step</button>
+              <button type="button" class="btn-submit">Submit</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <script src="../static/js/setup.js"></script>
+  </body>
+</html>
