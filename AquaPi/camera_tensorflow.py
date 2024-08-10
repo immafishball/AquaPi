@@ -109,6 +109,8 @@ if ('StatefulPartitionedCall' in outname): # This is a TF2 model
 else: # This is a TF1 model
     boxes_idx, classes_idx, scores_idx = 0, 1, 2
 
+freq = cv2.getTickFrequency()
+
 class Camera(BaseCamera):
     detected_objects = []  # Add this line to store detected objects
     
@@ -135,6 +137,9 @@ class Camera(BaseCamera):
 
                     nparr = np.frombuffer(stream.getvalue(), np.uint8)
                     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                    # Start timer (for calculating frame rate)
+                    t1 = cv2.getTickCount()
 
                     # Convert the captured frame to the format required by the model
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -181,6 +186,14 @@ class Camera(BaseCamera):
                     # Remove objects that were detected in previous frames but not in the current frame
                     Camera.detected_objects = [obj for obj in Camera.detected_objects if obj['name'] in current_frame_objects]
 
+                    # Calculate framerate
+                    t2 = cv2.getTickCount()
+                    time1 = (t2-t1)/freq
+                    frame_rate_calc= 1/time1
+
+                    # Draw framerate in corner of frame
+                    cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
+                    
                     # Yield the frame to the stream
                     _, encoded_frame = cv2.imencode('.jpg', frame)
                     yield encoded_frame.tobytes()
