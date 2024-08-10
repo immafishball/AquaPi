@@ -1,5 +1,6 @@
 import os
 import cv2
+import io
 
 import argparse
 import numpy as np
@@ -8,9 +9,10 @@ import time
 import importlib.util
 
 from picamera2 import Picamera2
-from threading import Thread
 from base_camera import BaseCamera
 from libcamera import controls
+
+from threading import Thread
 from datetime import datetime
 
 # Define and parse input arguments
@@ -27,9 +29,6 @@ parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If t
                     default='1280x720')
 parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
                     action='store_true')
-parser.add_argument('--capture', help='Flag to enable or disable background image capture',
-                    choices=['true', 'false'],
-                    default='false')
 
 args = parser.parse_args()
 
@@ -40,7 +39,6 @@ min_conf_threshold = float(args.threshold)
 resW, resH = args.resolution.split('x')
 imW, imH = int(resW), int(resH)
 use_TPU = args.edgetpu
-capture_enabled = args.capture.lower() == 'true'
 
 # Import TensorFlow libraries
 # If tflite_runtime is installed, import interpreter from tflite_runtime, else import from regular tensorflow
@@ -111,127 +109,84 @@ if ('StatefulPartitionedCall' in outname): # This is a TF2 model
 else: # This is a TF1 model
     boxes_idx, classes_idx, scores_idx = 0, 1, 2
 
-# Initialize frame rate calculation
-frame_rate_calc = 1
-freq = cv2.getTickFrequency()
-
 class Camera(BaseCamera):
-    video_source = 0
     detected_objects = []  # Add this line to store detected objects
-    cam = Picamera2()  # Initialize the camera once
-    camera_configured = False  # Track whether the camera is already configured
-    last_capture_time = time.time()  # Initialize last capture time
-    
-    def __init__(self):
-        if os.environ.get('OPENCV_CAMERA_SOURCE'):
-            Camera.set_video_source(int(os.environ['OPENCV_CAMERA_SOURCE']))
-        super(Camera, self).__init__()
-
-    @staticmethod
-    def set_video_source(source):
-        Camera.video_source = source
     
     @staticmethod
     def frames():
-        if not Camera.camera_configured:
-            # Configure the camera only if it's not already configured
-            preview_width= imW
-            preview_height = int(Camera.cam.sensor_resolution[1] * preview_width/Camera.cam.sensor_resolution[0])
-            preview_config_raw = Camera.cam.create_preview_configuration(main={"size": (preview_width, preview_height), "format": "RGB888"},
-                                                         raw={"size": Camera.cam.sensor_resolution})
-            Camera.cam.configure(preview_config_raw)
-            #Detect if AF function is available
-            AF_Function = True
-            AF_Enable = True
-            Camera.cam.set_controls({"AfMode": controls.AfModeEnum.Continuous})
-            Camera.camera_configured = True  # Update the flag
-            Camera.cam.start()
-                        
-        while True:
-            # Start timer (for calculating frame rate)
-            t1 = cv2.getTickCount()
+        with Picamera2() as camera:
+            preview_width = imW
+            preview_height = int(camera.sensor_resolution[1] * preview_width / camera.sensor_resolution[0])
+            preview_config_raw = camera.create_preview_configuration(
+                main={"size": (preview_width, preview_height), "format": "RGB888"},
+                raw={"size": camera.sensor_resolution}
+            )
+            camera.configure(preview_config_raw)
+            camera.set_controls({"AfMode": controls.AfModeEnum.Continuous})
+            camera.start()
+            time.sleep(2)
 
-            # Grab frame from video stream
-            frame1 = Camera.cam.capture_array()
+            stream = io.BytesIO()
 
-            # Acquire frame and resize to expected shape [1xHxWx3]
-            frame = frame1.copy()
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame_resized = cv2.resize(frame_rgb, (width, height))
-            input_data = np.expand_dims(frame_resized, axis=0)
+            try:
+                while True:
+                    camera.capture_file(stream, format='jpeg')
+                    stream.seek(0)
 
-            # Normalize pixel values if using a floating model (i.e. if model is non-quantized)
-            if floating_model:
-                input_data = (np.float32(input_data) - input_mean) / input_std
+                    nparr = np.frombuffer(stream.getvalue(), np.uint8)
+                    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-            # Perform the actual detection by running the model with the image as input
-            interpreter.set_tensor(input_details[0]['index'],input_data)
-            interpreter.invoke()
+                    # Convert the captured frame to the format required by the model
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frame_resized = cv2.resize(frame_rgb, (width, height))
+                    input_data = np.expand_dims(frame_resized, axis=0)
 
-            # Retrieve detection results
-            boxes = interpreter.get_tensor(output_details[boxes_idx]['index'])[0] # Bounding box coordinates of detected objects
-            classes = interpreter.get_tensor(output_details[classes_idx]['index'])[0] # Class index of detected objects
-            scores = interpreter.get_tensor(output_details[scores_idx]['index'])[0] # Confidence of detected objects
-            
-            # Initialize a set to keep track of detected objects in the current frame
-            current_frame_objects = set()
+                    if floating_model:
+                        input_data = (np.float32(input_data) - input_mean) / input_std
 
-            # Loop over all detections and draw detection box if confidence is above minimum threshold
-            for i in range(len(scores)):
-                if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
+                    interpreter.set_tensor(input_details[0]['index'], input_data)
+                    interpreter.invoke()
 
-                    # Get bounding box coordinates and draw box
-                    # Interpreter can return coordinates that are outside of image dimensions, need to force them to be within image using max() and min()
-                    ymin = int(max(1,(boxes[i][0] * imH)))
-                    xmin = int(max(1,(boxes[i][1] * imW)))
-                    ymax = int(min(imH,(boxes[i][2] * imH)))
-                    xmax = int(min(imW,(boxes[i][3] * imW)))
+                    # Retrieve detection results
+                    boxes = interpreter.get_tensor(output_details[boxes_idx]['index'])[0] # Bounding box coordinates of detected objects
+                    classes = interpreter.get_tensor(output_details[classes_idx]['index'])[0] # Class index of detected objects
+                    scores = interpreter.get_tensor(output_details[scores_idx]['index'])[0] # Confidence of detected objects
                     
-                    cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), (10, 255, 0), 2)
+                    # Initialize a set to keep track of detected objects in the current frame
+                    current_frame_objects = set()
 
-                    # Draw label
-                    object_name = labels[int(classes[i])] # Look up object name from "labels" array using class index
-                    label = '%s: %d%%' % (object_name, int(scores[i]*100)) # Example: 'person: 72%'
-                    labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2) # Get font size
-                    label_ymin = max(ymin, labelSize[1] + 10) # Make sure not to draw label too close to top of window
-                    cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
-                    cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
-                    
-                    # Store detected objects
-                    detected_object = {'name': object_name, 'confidence': int(scores[i] * 100)}
-                    current_frame_objects.add(object_name)
-                    
-                    # Add the detected object to the list if it's not already present
-                    if detected_object not in Camera.detected_objects:
-                        Camera.detected_objects.append(detected_object)
+                    for i in range(len(scores)):
+                        if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
+                            ymin = int(max(1, (boxes[i][0] * imH)))
+                            xmin = int(max(1, (boxes[i][1] * imW)))
+                            ymax = int(min(imH, (boxes[i][2] * imH)))
+                            xmax = int(min(imW, (boxes[i][3] * imW)))
 
-            # Remove objects that were detected in previous frames but not in the current frame
-            Camera.detected_objects = [obj for obj in Camera.detected_objects if obj['name'] in current_frame_objects]
+                            cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (10, 255, 0), 2)
+                            object_name = labels[int(classes[i])]
+                            label = '%s: %d%%' % (object_name, int(scores[i] * 100))
+                            labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                            label_ymin = max(ymin, labelSize[1] + 10)
+                            cv2.rectangle(frame, (xmin, label_ymin - labelSize[1] - 10), (xmin + labelSize[0], label_ymin + baseLine - 10), (255, 255, 255), cv2.FILLED)
+                            cv2.putText(frame, label, (xmin, label_ymin - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
 
-            # Calculate framerate
-            t2 = cv2.getTickCount()
-            time1 = (t2-t1)/freq
-            frame_rate_calc= 1/time1
-            
-            # Draw framerate in corner of frame
-            cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
+                            # Store detected objects
+                            detected_object = {'name': object_name, 'confidence': int(scores[i] * 100)}
+                            current_frame_objects.add(object_name)
+                            
+                            # Add the detected object to the list if it's not already present
+                            if detected_object not in Camera.detected_objects:
+                                Camera.detected_objects.append(detected_object)
 
-            # encode as a jpeg image and return it
-            yield cv2.imencode('.jpg', frame)[1].tobytes()
+                    # Remove objects that were detected in previous frames but not in the current frame
+                    Camera.detected_objects = [obj for obj in Camera.detected_objects if obj['name'] in current_frame_objects]
 
-    @staticmethod
-    def capture_thread():
-        while True:
-            current_time = time.time()
-            if current_time - Camera.last_capture_time >= 5:  # 600 seconds = 10 minutes
-                current_date_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                file_name = f"/home/pi/Projects/AquaPi/Captures/{current_date_time}.jpg"
-                Camera.cam.capture_file(file_name)
-                Camera.last_capture_time = current_time
-                print('Capturing image')
-            time.sleep(1)  # Adjust sleep time as needed
-            
-if capture_enabled:
-    capture_thread = Thread(target=Camera.capture_thread)
-    capture_thread.daemon = True
-    capture_thread.start()
+                    # Yield the frame to the stream
+                    _, encoded_frame = cv2.imencode('.jpg', frame)
+                    yield encoded_frame.tobytes()
+
+                    stream.seek(0)
+                    stream.truncate()
+
+            finally:
+                camera.stop()
