@@ -1,4 +1,4 @@
-# AquaPi
+# 🌟 AquaPi
 
 Monitor your Aquarium's Temperature and Water Level. With DFRobot Circuit Boards and Probe upgrades, you can also monitor your pH, Dissolved Oxygen, Temperature, Turbidity and other DFRobot circuits and probes. It can also identify types of fish to set conditions of the environment to the selected type of fish.
 Powered by an Raspberry Pi and Controlled by IoT. You can set alerts for anything, make automations for auto-top-off, and see beautiful graphs of your aquarium's data (see screenshot).
@@ -7,7 +7,7 @@ Powered by an Raspberry Pi and Controlled by IoT. You can set alerts for anythin
 
 This app simply made during my college as a final output for Project and Design 2. The UI is fully responsive therefore viewing it on small screens should be fine.
 
-## Features
+## 🎯 Features
 
 - Monitoring System [Local and Online]
 - Feeding System [Schedule and Manual]
@@ -17,7 +17,7 @@ This app simply made during my college as a final output for Project and Design 
 
 ## Getting Started
 
-### Dependencies
+### 🔑 Dependencies
 
 The project dependencies include Raspberry Pi OS (64-bit) - Bookworm, which serves as the operating system. Development tools such as Visual Studio Code, Python (3.9), and TensorFlow are essential for coding, testing, and deploying the application. Additionally, XRDP and WinSCP are utilized for remote desktop access and secure file transfer between systems.
 
@@ -33,7 +33,7 @@ The project dependencies include Raspberry Pi OS (64-bit) - Bookworm, which serv
 
 </details>
 
-### Installation
+### ⚙️ Installation
 
 This guide provides step-by-step instructions for how to set up YOLOv8 on the Raspberry Pi and use it to run object detection models. It also shows how to set up the Coral USB Accelerator on the Pi and run Edge TPU detection models. It works for the Raspberry Pi 3 and Raspberry Pi 4 running Rasbpian Bookworm.
 
@@ -76,7 +76,7 @@ Additional configuration is required as Bookworm doesn't allow the default user 
 </details>
 
 ### 3.Clone this Repository
-    sudo git clone https://github.com/immafishball/AquaPi.git
+    git clone https://github.com/immafishball/AquaPi.git
 
 ### 4. Installing required dependencies
 
@@ -87,6 +87,7 @@ To make things easier, I wrote a shell script that will automatically download a
 <details><summary><b>Python 3.9.12</b></summary>
 
 #### 1. Go to Projects Directory:
+    mv AquaPi Projects
     cd Projects
 
 #### 2. Download and Run the Pyenv Installer:
@@ -157,6 +158,9 @@ The --break-system-packages flag in pip allows to override the externally-manage
     pip install flask_cors --break-system-packages
     pip install smbus --break-system-packages
     pip install cvzone --break-system-packages
+    sudo apt-get install sqlite3
+    sudo apt-get install sqlitebrowser
+
 
 #### 4. Install PiCamera2:
 The pip installation of rpi-libcamera and rpi-kms may take a while **(>3mins on pi4)** on the "Preparing metadata (pyproject.toml)" stage, as it is compiling the python bindings from scratch.
@@ -165,11 +169,29 @@ The pip installation of rpi-libcamera and rpi-kms may take a while **(>3mins on 
     pip install wheel
     pip install rpi-libcamera rpi-kms picamera2
 
-</details>
+#### 5. Set Crontab for Fish Feeder:
+Well have to set a cron job scheduler for our fish feeder checking for every minute if there is exisiting timed set in our database.
+
+    crontab -e
+
+Select an editor (if prompted):
+If this is your first time setting up a crontab, you might be prompted to choose an editor. The default is usually nano, which is simple to use.
+
+Add the cron job:
+Once the editor opens, add the following line to run your script every minute:
+
+    * * * * * /usr/bin/python3 /home/pi/Projects/AquaPi/cron_script.py
+
+Verify the cron job:
+You can confirm that the cron job has been added by running:
+
+    crontab -l
 
 </details>
 
-### Usage
+</details>
+
+### ⚙️ Usage
 This project uses object detection models to identify objects in real-time from a webcam feed. The project supports both YOLOv8 and TensorFlow Lite models. Below are instructions on how to run the code for each model type.
 
 #### Activate the Virtual Environment:
@@ -212,7 +234,11 @@ This project uses object detection models to identify objects in real-time from 
 
 </details>
 
-## Notice
+## 🧭 Roadmap
+* [ ] Add Instructions for Custom Model
+* [ ] Accesibility for sensors
+
+## ‼️ Notice
 
 This project can be run fully locally without any internet connection, otherwise you will need to have a connection to control the IoT devices.
 
