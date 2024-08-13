@@ -153,11 +153,11 @@ The --break-system-packages flag in pip allows to override the externally-manage
 
 **Note: Usage of this flag shouldn't be abused.**
 
-    pip install RPi.GPIO --break-system-packages
-    pip install flask --break-system-packages
-    pip install flask_cors --break-system-packages
-    pip install smbus --break-system-packages
-    pip install cvzone --break-system-packages
+    pip install RPi.GPIO
+    pip install flask
+    pip install flask_cors
+    pip install smbus
+    pip install cvzone
     sudo apt-get install sqlite3
     sudo apt-get install sqlitebrowser
 
@@ -165,7 +165,6 @@ The --break-system-packages flag in pip allows to override the externally-manage
 #### 4. Install PiCamera2:
 The pip installation of rpi-libcamera and rpi-kms may take a while **(>3mins on pi4)** on the "Preparing metadata (pyproject.toml)" stage, as it is compiling the python bindings from scratch.
 
-    pip install --upgrade pip
     pip install wheel
     pip install rpi-libcamera rpi-kms picamera2
 
