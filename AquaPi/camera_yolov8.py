@@ -54,6 +54,10 @@ model = YOLO(PATH_TO_CKPT, verbose=False)
 with open(PATH_TO_LABELS, "r") as file:
     class_list = file.read().split("\n")
 
+def print_af_state(request):
+    md = request.get_metadata()
+    print(("Idle", "Scanning", "Success", "Fail")[md['AfState']], md.get('LensPosition'))
+    
 # Define the Camera class
 class Camera(BaseCamera):
     detected_objects = []  # List to store detected objects

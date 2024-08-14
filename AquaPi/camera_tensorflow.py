@@ -111,6 +111,10 @@ else: # This is a TF1 model
 
 freq = cv2.getTickFrequency()
 
+def print_af_state(request):
+    md = request.get_metadata()
+    print(("Idle", "Scanning", "Success", "Fail")[md['AfState']], md.get('LensPosition'))
+    
 class Camera(BaseCamera):
     detected_objects = []  # Add this line to store detected objects
     
