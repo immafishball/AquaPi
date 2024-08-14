@@ -117,6 +117,7 @@ class Camera(BaseCamera):
     @staticmethod
     def frames():
         with Picamera2() as camera:
+            camera.pre_callback = print_af_state
             preview_width = imW
             preview_height = int(camera.sensor_resolution[1] * preview_width / camera.sensor_resolution[0])
             preview_config_raw = camera.create_preview_configuration(
@@ -124,9 +125,12 @@ class Camera(BaseCamera):
                 raw={"size": camera.sensor_resolution}
             )
             camera.configure(preview_config_raw)
-            camera.set_controls({"AfMode": controls.AfModeEnum.Continuous})
+            camera.set_controls({"AfMode": controls.AfModeEnum.Continuous, "AfSpeed": controls.AfSpeedEnum.Fast})
+            camera.start(show_preview=False)
+            #success = camera.autofocus_cycle()
+            #camera.pre_callback = None
             camera.start()
-            time.sleep(2)
+            time.sleep(2)  # Allow camera to warm up
 
             stream = io.BytesIO()
 
