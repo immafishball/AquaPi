@@ -190,12 +190,13 @@ You can confirm that the cron job has been added by running:
 
 </details>
 
-### ⚙️ Usage
+### 👀 Usage
 This project uses object detection models to identify objects in real-time from a webcam feed. The project supports both YOLOv8 and TensorFlow Lite models. Below are instructions on how to run the code for each model type.
 
 #### Activate the Virtual Environment:
-    cd Projects/AquaPi
+    cd Projects
     source .venv/bin/activate
+    cd AquaPi
 
 <details><summary><b>YOLOv8 Instructions</b></summary>
 
