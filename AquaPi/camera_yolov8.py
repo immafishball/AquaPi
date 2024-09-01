@@ -54,10 +54,6 @@ model = YOLO(PATH_TO_CKPT, verbose=False)
 with open(PATH_TO_LABELS, "r") as file:
     class_list = file.read().split("\n")
 
-def print_af_state(request):
-    md = request.get_metadata()
-    print(("Idle", "Scanning", "Success", "Fail")[md['AfState']], md.get('LensPosition'))
-    
 # Define the Camera class
 class Camera(BaseCamera):
     detected_objects = []  # List to store detected objects
@@ -65,7 +61,17 @@ class Camera(BaseCamera):
     @staticmethod
     def frames():
         with Picamera2() as camera:
+            # Autofocus callback
+            def print_af_state(request):
+                md = request.get_metadata()
+                af_state = ("Idle", "Scanning", "Success", "Fail")[md['AfState']]
+                lens_position = md.get('LensPosition')
+                print(f"AF State: {af_state}, Lens Position: {lens_position}")
+                return af_state
+
             camera.pre_callback = print_af_state
+
+            # Camera configuration
             preview_width = imW
             preview_height = int(camera.sensor_resolution[1] * preview_width / camera.sensor_resolution[0])
             preview_config_raw = camera.create_preview_configuration(
@@ -73,12 +79,17 @@ class Camera(BaseCamera):
                 raw={"size": camera.sensor_resolution}
             )
             camera.configure(preview_config_raw)
-            camera.set_controls({"AfMode": controls.AfModeEnum.Continuous, "AfSpeed": controls.AfSpeedEnum.Fast})
             camera.start(show_preview=False)
-            #success = camera.autofocus_cycle()
-            #camera.pre_callback = None
-            camera.start()
+
+            # Autofocus settings
+            camera.set_controls({"AfMode": controls.AfModeEnum.Continuous})
             time.sleep(2)  # Allow camera to warm up
+
+            # Trigger autofocus cycle
+            print("Starting autofocus...")
+            camera.autofocus_cycle()
+            time.sleep(1)  # Give time for autofocus to complete
+            print("Autofocus complete.")
 
             stream = io.BytesIO()
             frame_count = 0
@@ -86,9 +97,10 @@ class Camera(BaseCamera):
 
             try:
                 while True:
+                    # Capture the frame
                     camera.capture_file(stream, format='jpeg')
                     stream.seek(0)
-                    
+
                     # Convert the captured frame into a format suitable for OpenCV
                     nparr = np.frombuffer(stream.getvalue(), np.uint8)
                     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -145,6 +157,11 @@ class Camera(BaseCamera):
                     # Reset stream for next frame
                     stream.seek(0)
                     stream.truncate()
+
+                    # Re-trigger autofocus periodically or based on some conditions
+                    if frame_count % 50 == 0:  # Example: autofocus every 50 frames
+                        print("Re-triggering autofocus...")
+                        camera.autofocus_cycle()
 
             finally:
                 camera.stop()

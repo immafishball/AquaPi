@@ -14,7 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 GPIO.setmode(GPIO.BCM)
 FS_IR02_PIN_1 = 18
 FS_IR02_PIN_2 = 17
-TURB_PIN = 8
+TURB_PIN = 12
 WATER_PUMP_PIN_1 = 9
 WATER_PUMP_PIN_2 = 10
 
@@ -30,7 +30,7 @@ GPIO.output(WATER_PUMP_PIN_2, GPIO.LOW)
 GPIO.output(WATER_PUMP_PIN_1, GPIO.LOW)
 
 board = Board(1, 0x10)    # Select i2c bus 1, set address to 0x10
-
+    
 def board_detect():
   l = board.detecte()
   '''print("Board list conform:")'''
@@ -121,13 +121,18 @@ def read_turbidity():
     else:
         return "Low"
 
+board_detect()
+board.set_adc_enable()
+    
+ph = DFRobot_PH()
+ph.begin()
+
 def read_ph_level():
-    board_detect()
-    board.set_adc_enable()
-    ph = DFRobot_PH()
-    ph.begin()
+    val = board.get_adc_value(board.A3)
     
-    val = board.get_adc_value(board.A0)
-    pH = ph.read_PH((val + 450), 25)
-    return pH
+    pH = ph.read_PH(val, 25)
+    return pH    
     
+def calibrate_ph_level():
+    val = board.get_adc_value(board.A3)
+    ph.calibration(val)
