@@ -96,12 +96,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const currentTemperatureElement =
       document.getElementById("card-temperature");
+    const currentTemperatureStatusElement =
+      document.getElementById("card-temperature-status");
     const lastEndpoint = isLastHourEndpoint
       ? "/get_temperature?timeRange=lastHour"
       : "/get_temperature?timeRange=latest";
     currentTemperatureElement.innerHTML = `${celsius.toFixed(
       3
     )}°C / ${fahrenheit.toFixed(3)}°F`;
+    
+    // Determine the temperature status based on catfish temperature ranges
+    let status;
+    if (celsius >= 23 && celsius <= 27) {
+      status = "Normal";
+    } else if ((celsius >= 21 && celsius < 23) || (celsius > 27 && celsius <= 29)) {
+      status = "Warning";
+    } else {
+      status = "Critical";
+    }
+
+    // Update the status element with the determined status
+    currentTemperatureStatusElement.innerHTML = status;
   };
 
   const startInterval = (url) => {
@@ -176,12 +191,15 @@ document.addEventListener("DOMContentLoaded", () => {
     fetch("/turbidity") // Update the endpoint accordingly
       .then((response) => response.json())
       .then((data) => {
-        const turbidity = data.turbidity;
+        const turbidity = data.turbidity[0];
 
         // Update water level value on the page
         const currentTurbidityElement =
           document.getElementById("card-turbidity");
         currentTurbidityElement.innerHTML = turbidity;
+        const currentTurbiditystatusElement =
+        document.getElementById("card-turbidity-status");
+        currentTurbiditystatusElement.innerHTML = data.turbidity[1];
       })
       .catch((error) => console.error("Error fetching turbidity:", error));
   }
@@ -195,7 +213,7 @@ document.addEventListener("DOMContentLoaded", () => {
     fetch("/ph_level") // Update the endpoint accordingly
       .then((response) => response.json())
       .then((data) => {
-        const pH = data.pH;
+        const pH = data.pH[0];
 // Convert the pH level to a string with two decimal places
 let formattedPhLevel = pH.toFixed(2);
 
@@ -203,6 +221,9 @@ let formattedPhLevel = pH.toFixed(2);
         const currentpHElement =
           document.getElementById("card-ph-level");
         currentpHElement.innerHTML = formattedPhLevel;
+        const currentpHstatus =
+          document.getElementById("card-ph-status");
+          currentpHstatus.innerHTML = data.pH[1];
       })
       .catch((error) => console.error("Error fetching ph level:", error));
   }

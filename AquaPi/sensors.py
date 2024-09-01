@@ -72,12 +72,20 @@ def read_water_temperature():
                 timestamp = time.time() * 1000
                 celsius = temperature
                 fahrenheit = (celsius * 1.8) + 32
-                return timestamp, celsius, fahrenheit
+
+                # Determine the status based on temperature for catfish
+                if (celsius>23 and celsius<27):
+                    status = "Normal"
+                elif (celsius>21 and celsius<23) or (celsius>27 and celsius<29):
+                    status = "Warning"
+                else:
+                    status = "Critical"
+                
+                return timestamp, celsius, fahrenheit, status
         except FileNotFoundError:
-            return None, None, None
-    return None, None, None
-
-
+            return None, None, None, "Sensor Not Found"
+    return None, None, None, "Sensor Not Found"
+    
 def read_water_sensor():
     # Read water level
     water_level_gpio17 = GPIO.input(FS_IR02_PIN_1)
@@ -117,9 +125,9 @@ def read_turbidity():
     # Read Turbidity
     input_state = GPIO.input(TURB_PIN)
     if input_state == False:
-        return "High"
+        return "High", "Clear"
     else:
-        return "Low"
+        return "Low", "Cloudy"
 
 board_detect()
 board.set_adc_enable()
@@ -131,7 +139,13 @@ def read_ph_level():
     
     val = board.get_adc_value(board.A3)
     pH = ph.read_PH(val, 25)
-    return pH    
+    
+    if (val>1320 and val<1678):
+        return pH, "Neutral"
+    elif (val>1854 and val<2210):
+        return pH, "Acidic"
+    else:
+        return pH, "Unknown"
     
 def calibrate_ph_level():
     val = board.get_adc_value(board.A3)

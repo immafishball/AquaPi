@@ -29,11 +29,11 @@ def close_db(e=None):
         db.close()
 
 
-def save_temp_data(timestamp, celsius, fahrenheit):
+def save_temp_data(timestamp, celsius, fahrenheit, status):
     db = get_db()
     db.execute(
-        "INSERT INTO temperature_log (timestamp, celsius, fahrenheit) VALUES (?, ?, ?)",
-        (timestamp, celsius, fahrenheit),
+        "INSERT INTO temperature_log (timestamp, celsius, fahrenheit, status) VALUES (?, ?, ?, ?)",
+        (timestamp, celsius, fahrenheit, status),
     )
     db.commit()
 
@@ -82,7 +82,7 @@ def get_last_hour_temperature_data():
     # Calculate the timestamp for one hour ago in milliseconds
     one_hour_ago = time.time() * 1000 - 3600 * 1000
     cursor = db.execute(
-        "SELECT timestamp, celsius, fahrenheit FROM temperature_log WHERE timestamp >= ? ORDER BY timestamp ASC",
+        "SELECT timestamp, celsius, fahrenheit, status FROM temperature_log WHERE timestamp >= ? ORDER BY timestamp ASC",
         (one_hour_ago,),
     )
     rows = cursor.fetchall()
@@ -91,7 +91,7 @@ def get_last_hour_temperature_data():
     if rows:
         # Extract only the values from each row
         data_list = [
-            [row["timestamp"], row["celsius"], row["fahrenheit"]] for row in rows
+            [row["timestamp"], row["celsius"], row["fahrenheit"], row["status"]] for row in rows
         ]
         return data_list
 
@@ -103,7 +103,13 @@ def get_last_day_temperature_data():
     # Calculate the timestamp for one day ago in milliseconds
     one_day_ago = time.time() * 1000 - 24 * 3600 * 1000
     cursor = db.execute(
-        'SELECT AVG(celsius) as avg_celsius, AVG(fahrenheit) as avg_fahrenheit, strftime("%Y-%m-%d %H:00:00", datetime(timestamp/1000, "unixepoch", "localtime")) as avg_timestamp FROM temperature_log WHERE timestamp >= ? GROUP BY strftime("%Y-%m-%d %H", datetime(timestamp/1000, "unixepoch", "localtime")) ORDER BY timestamp ASC',
+        '''SELECT AVG(celsius) as avg_celsius, AVG(fahrenheit) as avg_fahrenheit, 
+                  MAX(status) as status,  -- Get the most recent status
+                  strftime("%Y-%m-%d %H:00:00", datetime(timestamp/1000, "unixepoch", "localtime")) as avg_timestamp 
+           FROM temperature_log 
+           WHERE timestamp >= ? 
+           GROUP BY strftime("%Y-%m-%d %H", datetime(timestamp/1000, "unixepoch", "localtime")) 
+           ORDER BY timestamp ASC''',
         (one_day_ago,),
     )
     rows = cursor.fetchall()
@@ -112,8 +118,7 @@ def get_last_day_temperature_data():
     if rows:
         # Extract only the values from each row
         data_list = [
-            [row["avg_timestamp"], row["avg_celsius"], row["avg_fahrenheit"]]
-            for row in rows
+            [row["avg_timestamp"], row["avg_celsius"], row["avg_fahrenheit"], row["status"]] for row in rows
         ]
         return data_list
 

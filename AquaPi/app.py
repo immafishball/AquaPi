@@ -162,7 +162,7 @@ def get_temperature():
     time_range = request.args.get("timeRange", "latest")
 
     if time_range == "latest":
-        timestamp, celsius, fahrenheit = read_water_temperature()
+        timestamp, celsius, fahrenheit, status = read_water_temperature()
     elif time_range == "lastHour":
         data = get_last_hour_temperature_data()
     elif time_range == "lastDay":
@@ -173,7 +173,7 @@ def get_temperature():
     if "data" in locals():
         return jsonify(data)
     elif celsius is not None:
-        data = [timestamp, celsius, fahrenheit]
+        data = [timestamp, celsius, fahrenheit, status]
         return jsonify(data)
     return jsonify({"error": "Sensor not found"})
 
@@ -247,9 +247,9 @@ def detect_objects():
 def save_temperature_data_periodically():
     with app.app_context():
         while True:
-            timestamp, celsius, fahrenheit = read_water_temperature()
+            timestamp, celsius, fahrenheit, status = read_water_temperature()
             if celsius is not None:
-                save_temp_data(timestamp, celsius, fahrenheit)
+                save_temp_data(timestamp, celsius, fahrenheit, status)
             time.sleep(300)  # Adjust the sleep duration as needed
 
 # Start the background thread
@@ -266,7 +266,7 @@ def control_water_pump_periodically():
             water_level = read_water_sensor()
             ph = read_ph_level()
             turbidity = read_turbidity()
-            if ph > 6.90:
+            if ph[0] > 6.90:
                 fill_water_off()  # Turn on water pump when turbidity is low
             else:
                 fill_water_off()  # Turn off water pump when turbidity is high
