@@ -125,14 +125,17 @@ board_detect()
 board.set_adc_enable()
     
 ph = DFRobot_PH()
-ph.begin()
 
 def read_ph_level():
-    val = board.get_adc_value(board.A3)
+    ph.begin()
     
+    val = board.get_adc_value(board.A3)
     pH = ph.read_PH(val, 25)
     return pH    
     
 def calibrate_ph_level():
     val = board.get_adc_value(board.A3)
     ph.calibration(val)
+
+def reset_ph_level():
+    ph.reset()
