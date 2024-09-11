@@ -90,15 +90,19 @@ def read_water_sensor():
     # Read water level
     water_level_gpio17 = GPIO.input(FS_IR02_PIN_1)
     water_level_gpio18 = GPIO.input(FS_IR02_PIN_2)
+    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
 
     if water_level_gpio17 == GPIO.HIGH and water_level_gpio18 == GPIO.LOW:
-        return "OK"
+        water_level = "OK"
     elif water_level_gpio17 == GPIO.LOW and water_level_gpio18 == GPIO.LOW:
-        return "Low"
+        water_level = "Low"
     elif water_level_gpio17 == GPIO.HIGH and water_level_gpio18 == GPIO.HIGH:
-        return "High"
+        water_level = "High"
     else:
-        return "Unknown"
+        water_level = "Unknown"
+
+    return timestamp, water_level
+
 
 
 def read_pump_status(pump_number):
@@ -136,16 +140,19 @@ ph = DFRobot_PH()
 
 def read_ph_level():
     ph.begin()
-    
     val = board.get_adc_value(board.A3)
     pH = ph.read_PH(val, 25)
-    
-    if (val>1320 and val<1678):
-        return pH, "Neutral"
-    elif (val>1854 and val<2210):
-        return pH, "Acidic"
+    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
+
+    if (val > 1320 and val < 1678):
+        status = "Neutral"
+    elif (val > 1854 and val < 2210):
+        status = "Acidic"
     else:
-        return pH, "Unknown"
+        status = "Unknown"
+
+    return timestamp, pH, status
+
     
 def calibrate_ph_level():
     val = board.get_adc_value(board.A3)

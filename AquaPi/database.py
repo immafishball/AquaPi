@@ -123,3 +123,109 @@ def get_last_day_temperature_data():
         return data_list
 
     return None
+
+def save_water_level_data(timestamp, water_level):
+    db = get_db()
+    db.execute(
+        "INSERT INTO water_level_log (timestamp, water_level) VALUES (?, ?)",
+        (timestamp, water_level),
+    )
+    db.commit()
+
+def save_ph_level_data(timestamp, ph, status):
+    db = get_db()
+    db.execute(
+        "INSERT INTO ph_level_log (timestamp, ph, status) VALUES (?, ?, ?)",
+        (timestamp, ph, status),
+    )
+    db.commit()
+
+def get_last_hour_water_level_data():
+    db = get_db()
+    one_hour_ago = time.time() * 1000 - 3600 * 1000
+    cursor = db.execute(
+        "SELECT timestamp, water_level FROM water_level_log WHERE timestamp >= ? ORDER BY timestamp ASC",
+        (one_hour_ago,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+
+    if rows:
+        # Extract only the values from each row
+        data_list = [
+            [row["timestamp"], row["water_level"]] for row in rows
+        ]
+        return data_list
+
+    return None
+
+
+def get_last_day_water_level_data():
+    db = get_db()
+    one_day_ago = time.time() * 1000 - 24 * 3600 * 1000
+    cursor = db.execute(
+        '''SELECT AVG(CAST(water_level AS INTEGER)) as avg_water_level,
+                   strftime("%Y-%m-%d %H:00:00", datetime(timestamp/1000, "unixepoch", "localtime")) as avg_timestamp 
+           FROM water_level_log 
+           WHERE timestamp >= ? 
+           GROUP BY strftime("%Y-%m-%d %H", datetime(timestamp/1000, "unixepoch", "localtime")) 
+           ORDER BY timestamp ASC''',
+        (one_day_ago,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+
+    if rows:
+        # Extract only the values from each row
+        data_list = [
+            [row["avg_timestamp"], row["avg_water_level"]] for row in rows
+        ]
+        return data_list
+
+    return None
+
+
+def get_last_hour_ph_level_data():
+    db = get_db()
+    one_hour_ago = time.time() * 1000 - 3600 * 1000
+    cursor = db.execute(
+        "SELECT timestamp, ph, status FROM ph_level_log WHERE timestamp >= ? ORDER BY timestamp ASC",
+        (one_hour_ago,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+
+    if rows:
+        # Extract only the values from each row
+        data_list = [
+            [row["timestamp"], row["ph"], row["status"]] for row in rows
+        ]
+        return data_list
+
+    return None
+
+
+def get_last_day_ph_level_data():
+    db = get_db()
+    one_day_ago = time.time() * 1000 - 24 * 3600 * 1000
+    cursor = db.execute(
+        '''SELECT AVG(ph) as avg_ph,
+                   strftime("%Y-%m-%d %H:00:00", datetime(timestamp/1000, "unixepoch", "localtime")) as avg_timestamp 
+           FROM ph_level_log 
+           WHERE timestamp >= ? 
+           GROUP BY strftime("%Y-%m-%d %H", datetime(timestamp/1000, "unixepoch", "localtime")) 
+           ORDER BY timestamp ASC''',
+        (one_day_ago,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+
+    if rows:
+        # Extract only the values from each row
+        data_list = [
+            [row["avg_timestamp"], row["avg_ph"]] for row in rows
+        ]
+        return data_list
+
+    return None
+
