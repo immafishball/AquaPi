@@ -25,9 +25,15 @@ from database import (
     create_tables,
     close_db,
     save_temp_data,
+    save_water_level_data,
+    save_ph_level_data,
     get_fish_data_by_name,
     get_last_hour_temperature_data,
     get_last_day_temperature_data,
+    get_last_hour_water_level_data,
+    get_last_day_water_level_data,
+    get_last_hour_ph_level_data,
+    get_last_day_ph_level_data,
     update_fish_data,
 )
 
@@ -122,41 +128,6 @@ def feeder():
     return render_template("feeder.html")
 
 
-@app.route("/setup")
-def setup():
-    return render_template("setup.html")
-
-
-@app.route("/api/fish-data/<fish_name>", methods=["GET"])
-def get_fish_data(fish_name):
-    fish_data = get_fish_data_by_name(fish_name)
-
-    if fish_data:
-        return jsonify(fish_data)
-    else:
-        return jsonify({"error": "Fish not found"}), 404
-
-
-@app.route("/api/update-fish-data/<fish_name>", methods=["POST"])
-def update_fish_data_api(fish_name):
-    content = request.get_json()
-    temp_min = content.get("temp_min")
-    temp_max = content.get("temp_max")
-    ph_min = content.get("ph_min")
-    ph_max = content.get("ph_max")
-    oxygen_min = content.get("oxygen_min")
-    oxygen_max = content.get("oxygen_max")
-
-    if not all([temp_min, temp_max, ph_min, ph_max, oxygen_min, oxygen_max]):
-        return jsonify({"error": "Incomplete data provided"}), 400
-
-    result = update_fish_data(
-        fish_name, temp_min, temp_max, ph_min, ph_max, oxygen_min, oxygen_max
-    )
-
-    return jsonify(result)
-
-
 @app.route("/get_temperature", methods=["GET"])
 def get_temperature():
     time_range = request.args.get("timeRange", "latest")
@@ -180,9 +151,22 @@ def get_temperature():
 
 @app.route("/water_level", methods=["GET"])
 def get_water_level():
-    water_level = read_water_sensor()
-    if water_level:
-        return jsonify({"water_level": water_level})
+    time_range = request.args.get("timeRange", "latest")
+
+    if time_range == "latest":
+        timestamp, water_level = read_water_sensor()
+    elif time_range == "lastHour":
+        data = get_last_hour_water_level_data()
+    elif time_range == "lastDay":
+        data = get_last_day_water_level_data()
+    else:
+        return jsonify({"error": "Invalid time range"})
+
+    if "data" in locals():
+        return jsonify(data)
+    elif water_level is not None:
+        data = [timestamp, water_level]
+        return jsonify(data)
     return jsonify({"error": "Sensor not found"})
 
 
@@ -195,11 +179,24 @@ def get_turbidity():
 
 @app.route("/ph_level", methods=["GET"])
 def get_ph_level():
-    ph = read_ph_level()
-    if ph:
-        return jsonify({"pH": ph})
+    time_range = request.args.get("timeRange", "latest")
+
+    if time_range == "latest":
+        timestamp, ph, status = read_ph_level()
+    elif time_range == "lastHour":
+        data = get_last_hour_ph_level_data()
+    elif time_range == "lastDay":
+        data = get_last_day_ph_level_data()
+    else:
+        return jsonify({"error": "Invalid time range"})
+
+    if "data" in locals():
+        return jsonify(data)
+    elif ph is not None:
+        data = [timestamp, ph, status]
+        return jsonify(data)
     return jsonify({"error": "Sensor not found"})
-    
+
 @app.route("/pump_status", methods=["GET"])
 def get_pump_status():
     try:
@@ -243,41 +240,38 @@ def detect_objects():
     Camera.detected_objects = []  # Clear the list after retrieving
     return jsonify(detected_objects)
 
-# Function to run in the background thread to periodically save temperature data
-def save_temperature_data_periodically():
+def periodic_tasks():
     with app.app_context():
         while True:
+            # Save temperature data
             timestamp, celsius, fahrenheit, status = read_water_temperature()
             if celsius is not None:
                 save_temp_data(timestamp, celsius, fahrenheit, status)
-            time.sleep(300)  # Adjust the sleep duration as needed
-
-# Start the background thread
-save_temp_thread = threading.Thread(target=save_temperature_data_periodically)
-save_temp_thread.daemon = (
-    True  # Allow the program to exit even if this thread is still running
-)
-save_temp_thread.start()
-
-# Function to run in the background thread to periodically check turbidity and control water pump
-def control_water_pump_periodically():
-    with app.app_context():
-        while True:
-            water_level = read_water_sensor()
+            
+            # Save water level data
+            timestamp, water_level = read_water_sensor()
+            if water_level is not None:
+                save_water_level_data(timestamp, water_level)
+                    
+            # Save pH level data
+            timestamp, ph, status = read_ph_level()
+            if ph is not None:
+                save_ph_level_data(timestamp, ph, status)
+            
+            # Control water pump
             ph = read_ph_level()
-            turbidity = read_turbidity()
             if ph[0] > 6.90:
-                fill_water_off()  # Turn on water pump when turbidity is low
+                fill_water_off()  # Turn on water pump when pH is high
             else:
-                fill_water_off()  # Turn off water pump when turbidity is high
+                fill_water_off()  # Turn off water pump when pH is low
+            
+            # Sleep for a period of time (e.g., 300 seconds)
+            time.sleep(300)
 
-            time.sleep(1)  # Adjust the sleep duration as needed
-
-
-# Start the background thread for controlling water pump
-control_water_pump_thread = threading.Thread(target=control_water_pump_periodically)
-control_water_pump_thread.daemon = True
-control_water_pump_thread.start()
+# Start the combined background thread
+periodic_thread = threading.Thread(target=periodic_tasks)
+periodic_thread.daemon = True
+periodic_thread.start()
 
 if __name__ == "__main__":
     atexit.register(cleanup)  # Register cleanup function
