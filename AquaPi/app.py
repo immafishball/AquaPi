@@ -149,7 +149,7 @@ def get_temperature():
     return jsonify({"error": "Sensor not found"})
 
 
-@app.route("/water_level", methods=["GET"])
+@app.route("/get_water_level", methods=["GET"])
 def get_water_level():
     time_range = request.args.get("timeRange", "latest")
 
@@ -177,7 +177,7 @@ def get_turbidity():
         return jsonify({"turbidity": turbidity})
     return jsonify({"error": "Sensor not found"})
 
-@app.route("/ph_level", methods=["GET"])
+@app.route("/get_ph_level", methods=["GET"])
 def get_ph_level():
     time_range = request.args.get("timeRange", "latest")
 
@@ -243,24 +243,25 @@ def detect_objects():
 def periodic_tasks():
     with app.app_context():
         while True:
+            timestamp = time.time() * 1000  # Generate a single timestamp
+            
             # Save temperature data
-            timestamp, celsius, fahrenheit, status = read_water_temperature()
+            _, celsius, fahrenheit, status = read_water_temperature(timestamp)
             if celsius is not None:
                 save_temp_data(timestamp, celsius, fahrenheit, status)
-            
+
             # Save water level data
-            timestamp, water_level = read_water_sensor()
+            _, water_level = read_water_sensor(timestamp)
             if water_level is not None:
                 save_water_level_data(timestamp, water_level)
-                    
+
             # Save pH level data
-            timestamp, ph, status = read_ph_level()
+            _, ph, status = read_ph_level(timestamp)
             if ph is not None:
                 save_ph_level_data(timestamp, ph, status)
-            
-            # Control water pump
-            ph = read_ph_level()
-            if ph[0] > 6.90:
+
+            # Control water pump based on pH level
+            if ph > 6.90:
                 fill_water_off()  # Turn on water pump when pH is high
             else:
                 fill_water_off()  # Turn off water pump when pH is low
