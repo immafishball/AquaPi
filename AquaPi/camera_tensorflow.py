@@ -126,6 +126,8 @@ class Camera(BaseCamera):
     def frames():
         with Picamera2() as camera:
             camera.pre_callback = print_af_state
+            
+            # Camera configuration
             preview_width = imW
             preview_height = int(camera.sensor_resolution[1] * preview_width / camera.sensor_resolution[0])
             preview_config_raw = camera.create_preview_configuration(

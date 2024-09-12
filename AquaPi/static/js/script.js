@@ -68,11 +68,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let maxDisplayedDataPoints = 10; // Initial value
   let temperatureEndpoint = "/get_temperature?timeRange=latest";
-  let pHEndpoint = "/ph_level?timeRange=latest";
+  let pHEndpoint = "/get_ph_level?timeRange=latest";
   let intervalId;
 
   const updateTemperatureChartData = (data) => {
-    let celsius, fahrenheit, timestamp;
+    let celsius, fahrenheit, timestamp, status;
     const isLastHourEndpoint = data[0] && Array.isArray(data[0]);
     const newDataPoints = isLastHourEndpoint ? data : [data];
 
@@ -83,7 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     newDataPoints.forEach((datapoint) => {
-      [timestamp, celsius, fahrenheit] = datapoint;
+      [timestamp, celsius, fahrenheit, status] = datapoint;
 
       let formattedDate;
       if (timeRangeSelect.value === "2") {
@@ -99,7 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (newDataPoints.length > 0) {
       const lastDataPoint = newDataPoints[newDataPoints.length - 1];
-      [timestamp, celsius, fahrenheit] = lastDataPoint;
+      [timestamp, celsius, fahrenheit, status] = lastDataPoint;
     }
 
     if (temperatureChart.data.labels.length > maxDisplayedDataPoints) {
@@ -113,21 +113,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const currentTemperatureElement = document.getElementById("card-temperature");
     const currentTemperatureStatusElement = document.getElementById("card-temperature-status");
     currentTemperatureElement.innerHTML = `${celsius.toFixed(3)}°C / ${fahrenheit.toFixed(3)}°F`;
-
-    let status;
-    if (celsius >= 23 && celsius <= 27) {
-      status = "Normal";
-    } else if ((celsius >= 21 && celsius < 23) || (celsius > 27 && celsius <= 29)) {
-      status = "Warning";
-    } else {
-      status = "Critical";
-    }
-
     currentTemperatureStatusElement.innerHTML = status;
   };
 
   const updatepHChartData = (data) => {
-    let pH, timestamp;
+    let pH, timestamp, status;
     const isLastHourEndpoint = data[0] && Array.isArray(data[0]);
     const newDataPoints = isLastHourEndpoint ? data : [data];
 
@@ -137,7 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     newDataPoints.forEach((datapoint) => {
-      [timestamp, pH] = datapoint;
+      [timestamp, pH, status] = datapoint;
 
       let formattedDate;
       if (timeRangeSelect.value === "2") {
@@ -160,16 +150,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const currentpHElement = document.getElementById("card-ph-level");
     const currentpHStatusElement = document.getElementById("card-ph-status");
     currentpHElement.innerHTML = `${pH.toFixed(2)}`;
-
-    let status;
-    if (pH >= 6.5 && pH <= 8.5) {
-      status = "Normal";
-    } else if (pH < 6.5 || pH > 8.5) {
-      status = "Warning";
-    } else {
-      status = "Critical";
-    }
-
     currentpHStatusElement.innerHTML = status;
   };
 
@@ -193,33 +173,33 @@ document.addEventListener("DOMContentLoaded", () => {
     switch (selectedValue) {
       case "1":
         temperatureEndpoint = "/get_temperature?timeRange=lastHour";
-        pHEndpoint = "/ph_level?timeRange=lastHour";
+        pHEndpoint = "/get_ph_level?timeRange=lastHour";
         break;
       case "2":
         temperatureEndpoint = "/get_temperature?timeRange=lastDay";
-        pHEndpoint = "/ph_level?timeRange=lastDay";
+        pHEndpoint = "/get_ph_level?timeRange=lastDay";
         break;
       case "3":
         temperatureEndpoint = "/get_temperature?timeRange=lastMonth";
-        pHEndpoint = "/ph_level?timeRange=lastMonth";
+        pHEndpoint = "/get_ph_level?timeRange=lastMonth";
         break;
       default:
         temperatureEndpoint = "/get_temperature?timeRange=latest";
-        pHEndpoint = "/ph_level?timeRange=latest";
+        pHEndpoint = "/get_ph_level?timeRange=latest";
     }
     startInterval(temperatureEndpoint, pHEndpoint);
   });
 
   function fetchWaterLevel() {
-    fetch("/water_level")
+    fetch("/get_water_level")
       .then((response) => response.json())
       .then((data) => {
-        const waterLevel = data.water_level;
+        const waterLevel = data[1];
         const currentWaterLevelElement = document.getElementById("card-water-level");
         currentWaterLevelElement.innerHTML = waterLevel;
       })
       .catch((error) => console.error("Error fetching water level:", error));
-  }
+  }  
 
   fetchWaterLevel(); 
   setInterval(fetchWaterLevel, 5000);

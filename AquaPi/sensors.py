@@ -60,7 +60,7 @@ def sensor():
     )
 
 
-def read_water_temperature():
+def read_water_temperature(timestamp=None):
     ds18b20 = sensor()
     if ds18b20:
         location = f"/sys/bus/w1/devices/{ds18b20}/w1_slave"
@@ -86,7 +86,7 @@ def read_water_temperature():
             return None, None, None, "Sensor Not Found"
     return None, None, None, "Sensor Not Found"
     
-def read_water_sensor():
+def read_water_sensor(timestamp=None):
     # Read water level
     water_level_gpio17 = GPIO.input(FS_IR02_PIN_1)
     water_level_gpio18 = GPIO.input(FS_IR02_PIN_2)
@@ -138,7 +138,7 @@ board.set_adc_enable()
     
 ph = DFRobot_PH()
 
-def read_ph_level():
+def read_ph_level(timestamp=None):
     ph.begin()
     val = board.get_adc_value(board.A3)
     pH = ph.read_PH(val, 25)
