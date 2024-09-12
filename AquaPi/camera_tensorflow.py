@@ -111,12 +111,16 @@ else: # This is a TF1 model
 
 freq = cv2.getTickFrequency()
 
+# Autofocus callback
 def print_af_state(request):
     md = request.get_metadata()
-    print(("Idle", "Scanning", "Success", "Fail")[md['AfState']], md.get('LensPosition'))
-    
+    af_state = ("Idle", "Scanning", "Success", "Fail")[md['AfState']]
+    lens_position = md.get('LensPosition')
+    print(f"AF State: {af_state}, Lens Position: {lens_position}")
+
+# Define the Camera class    
 class Camera(BaseCamera):
-    detected_objects = []  # Add this line to store detected objects
+    detected_objects = []  # List to store detected objects
     
     @staticmethod
     def frames():
