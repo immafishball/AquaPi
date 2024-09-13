@@ -125,13 +125,19 @@ def fill_water_off():
     GPIO.output(WATER_PUMP_PIN_1, GPIO.LOW)
 
 
-def read_turbidity():
+def read_turbidity(timestamp=None):
+    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
+
     # Read Turbidity
     input_state = GPIO.input(TURB_PIN)
     if input_state == False:
-        return "High", "Clear"
+        turbidity = "High"
+        status = "Clear"
     else:
-        return "Low", "Cloudy"
+        turbidity = "Low"
+        status = "Cloudy"
+
+    return timestamp, turbidity, status
 
 board_detect()
 board.set_adc_enable()

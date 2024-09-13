@@ -27,14 +27,15 @@ from database import (
     save_temp_data,
     save_water_level_data,
     save_ph_level_data,
-    get_fish_data_by_name,
+    save_turbidity_data,
     get_last_hour_temperature_data,
     get_last_day_temperature_data,
     get_last_hour_water_level_data,
     get_last_day_water_level_data,
     get_last_hour_ph_level_data,
     get_last_day_ph_level_data,
-    update_fish_data,
+    get_last_hour_turbidity_data,
+    get_last_day_turbidity_data
 )
 
 import time
@@ -170,12 +171,26 @@ def get_water_level():
     return jsonify({"error": "Sensor not found"})
 
 
-@app.route("/turbidity", methods=["GET"])
+@app.route("/get_turbidity", methods=["GET"])
 def get_turbidity():
-    turbidity = read_turbidity()
-    if turbidity:
-        return jsonify({"turbidity": turbidity})
+    time_range = request.args.get("timeRange", "latest")
+
+    if time_range == "latest":
+        timestamp, turbidity, status = read_turbidity()
+    elif time_range == "lastHour":
+        data = get_last_hour_turbidity_data()
+    elif time_range == "lastDay":
+        data = get_last_day_turbidity_data()
+    else:
+        return jsonify({"error": "Invalid time range"})
+ 
+    if "data" in locals():
+        return jsonify(data)
+    elif turbidity is not None:
+        data = [timestamp, turbidity, status]
+        return jsonify(data)
     return jsonify({"error": "Sensor not found"})
+
 
 @app.route("/get_ph_level", methods=["GET"])
 def get_ph_level():
@@ -259,6 +274,11 @@ def periodic_tasks():
             _, ph, status = read_ph_level(timestamp)
             if ph is not None:
                 save_ph_level_data(timestamp, ph, status)
+
+            # Save turbidity data
+            _, turbidity, status = read_turbidity(timestamp)
+            if turbidity is not None:
+                save_turbidity_data(timestamp, turbidity, status)
 
             # Control water pump based on pH level
             if ph > 6.90:
