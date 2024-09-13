@@ -36,46 +36,6 @@ def save_temp_data(timestamp, celsius, fahrenheit, status):
         (timestamp, celsius, fahrenheit, status),
     )
     db.commit()
-
-def get_fish_data_by_name(fish_name):
-    try:
-        db = get_db()
-        query = "SELECT * FROM Fish_Data WHERE name = ?"
-        fish_data = db.execute(query, (fish_name,)).fetchone()
-
-        if fish_data:
-            result = {
-                "name": fish_data["name"],
-                "temp_min": fish_data["temp_min"],
-                "temp_max": fish_data["temp_max"],
-                "ph_min": fish_data["ph_min"],
-                "ph_max": fish_data["ph_max"],
-                "oxygen_min": fish_data["oxygen_min"],
-                "oxygen_max": fish_data["oxygen_max"],
-            }
-            return result
-        else:
-            return None
-
-    except Exception as e:
-        print("Error fetching fish data:", e)
-        return None
-
-def update_fish_data(fish_name, temp_min, temp_max, ph_min, ph_max, oxygen_min, oxygen_max):
-    try:
-        db = get_db()
-        db.execute(
-            """
-            UPDATE fish_data
-            SET temp_min = ?, temp_max = ?, ph_min = ?, ph_max = ?, oxygen_min = ?, oxygen_max = ?
-            WHERE name = ?
-            """,
-            (temp_min, temp_max, ph_min, ph_max, oxygen_min, oxygen_max, fish_name),
-        )
-        db.commit()
-        return {"message": "Fish data updated successfully"}
-    except Exception as e:
-        return {"error": str(e)}
         
 def get_last_hour_temperature_data():
     db = get_db()
@@ -140,6 +100,14 @@ def save_ph_level_data(timestamp, ph, status):
     )
     db.commit()
 
+def save_turbidity_data(timestamp, turbidity, status):
+    db = get_db()
+    db.execute(
+        "INSERT INTO turbidity_log (timestamp, turbidity, status) VALUES (?, ?, ?)",
+        (timestamp, turbidity, status),
+    )
+    db.commit()
+
 def get_last_hour_water_level_data():
     db = get_db()
     one_hour_ago = time.time() * 1000 - 3600 * 1000
@@ -184,7 +152,7 @@ def get_last_day_water_level_data():
     if rows:
         # Extract only the values from each row
         data_list = [
-            [row["avg_timestamp"], row["avg_water_level"]] for row in rows
+            [row["avg_timestamp"], row["water_level"]] for row in rows
         ]
         return data_list
 
@@ -235,3 +203,53 @@ def get_last_day_ph_level_data():
 
     return None
 
+def get_last_hour_turbidity_data():
+    db = get_db()
+    one_hour_ago = time.time() * 1000 - 3600 * 1000
+    cursor = db.execute(
+        "SELECT timestamp, turbidity, status FROM turbidity_log WHERE timestamp >= ? ORDER BY timestamp ASC",
+        (one_hour_ago,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+
+    if rows:
+        # Extract only the values from each row
+        data_list = [
+            [row["timestamp"], row["turbidity"], row["status"]] for row in rows
+        ]
+        return data_list
+
+    return None
+
+
+def get_last_day_turbidity_data():
+    db = get_db()
+    one_day_ago = time.time() * 1000 - 24 * 3600 * 1000
+    cursor = db.execute(
+        '''SELECT avg_timestamp, turbidity, status
+           FROM (
+               SELECT strftime("%Y-%m-%d %H:00:00", datetime(timestamp/1000, "unixepoch", "localtime")) as avg_timestamp,
+                      turbidity,
+                      status,
+                      COUNT(*) as count
+               FROM turbidity_log
+               WHERE timestamp >= ?
+               GROUP BY avg_timestamp, turbidity, status
+               ORDER BY count DESC
+           ) as subquery
+           GROUP BY avg_timestamp
+           ORDER BY avg_timestamp ASC''',
+        (one_day_ago,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+
+    if rows:
+        # Extract only the values from each row
+        data_list = [
+            [row["avg_timestamp"], row["turbidity"], row["status"]] for row in rows
+        ]
+        return data_list
+
+    return None
