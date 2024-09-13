@@ -58,17 +58,21 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   });
 
-  const fetchData = (temperatureUrl, pHUrl, callback) => () =>
+  const fetchData = (temperatureUrl, pHUrl, waterLevelUrl, turbidityUrl, callback) => () =>
     Promise.all([
       fetch(temperatureUrl).then(response => response.json()),
-      fetch(pHUrl).then(response => response.json())
+      fetch(pHUrl).then(response => response.json()),
+      fetch(waterLevelUrl).then(response => response.json()),
+      fetch(turbidityUrl).then(response => response.json())
     ])
-    .then(([temperatureData, pHData]) => callback(temperatureData, pHData))
+    .then(([temperatureData, pHData, waterLevelData, turbidityData]) => callback(temperatureData, pHData, waterLevelData, turbidityData))
     .catch(error => console.error(`Error fetching data:`, error));
 
   let maxDisplayedDataPoints = 10; // Initial value
   let temperatureEndpoint = "/get_temperature?timeRange=latest";
   let pHEndpoint = "/get_ph_level?timeRange=latest";
+  let waterLevelEndpoint = "/get_water_level?timeRange=latest";
+  let turbidityEndpoint = "/get_turbidity?timeRange=latest";
   let intervalId;
 
   const updateTemperatureChartData = (data) => {
@@ -153,19 +157,95 @@ document.addEventListener("DOMContentLoaded", () => {
     currentpHStatusElement.innerHTML = status;
   };
 
-  const updateCharts = (temperatureData, pHData) => {
-    updateTemperatureChartData(temperatureData);
-    updatepHChartData(pHData);
+  const updateWaterLevelData = (data) => {
+    let water_level, timestamp;
+    const isLastHourEndpoint = data[0] && Array.isArray(data[0]);
+    const newDataPoints = isLastHourEndpoint ? data : [data];
+
+    if (isLastHourEndpoint) {
+      //waterLevel.data.labels = [];
+      //waterLevel.data.datasets[0].data = [];
+    }
+
+    newDataPoints.forEach((datapoint) => {
+      [timestamp, water_level] = datapoint;
+
+      let formattedDate;
+      if (timeRangeSelect.value === "2") {
+        formattedDate = new Date(timestamp).toLocaleString();
+      } else {
+        formattedDate = new Date(timestamp).toLocaleTimeString();
+      }
+
+      //waterLevel.data.labels.push(formattedDate);
+      //waterLevel.data.datasets[0].data.push(pH.toFixed(2));
+    });
+
+    //if (waterLevel.data.labels.length > maxDisplayedDataPoints) {
+      //waterLevel.data.labels.shift();
+      //waterLevel.data.datasets[0].data.shift();
+    //}
+
+    //waterLevel.update();
+
+    const currentwaterLevelElement = document.getElementById("card-water-level");
+    //const currentwaterLevelStatusElement = document.getElementById("card-ph-status");
+    currentwaterLevelElement.innerHTML = water_level;
+    //currentwaterLevelStatusElement.innerHTML = status;
   };
 
-  const startInterval = (temperatureUrl, pHUrl) => {
+  const updateTurbidityData = (data) => {
+    let turbidity, timestamp, status;
+    const isLastHourEndpoint = data[0] && Array.isArray(data[0]);
+    const newDataPoints = isLastHourEndpoint ? data : [data];
+
+    if (isLastHourEndpoint) {
+      //turbidity.data.labels = [];
+      //turbidity.data.datasets[0].data = [];
+    }
+
+    newDataPoints.forEach((datapoint) => {
+      [timestamp, turbidity, status] = datapoint;
+
+      let formattedDate;
+      if (timeRangeSelect.value === "2") {
+        formattedDate = new Date(timestamp).toLocaleString();
+      } else {
+        formattedDate = new Date(timestamp).toLocaleTimeString();
+      }
+
+      //turbidity.data.labels.push(formattedDate);
+      //turbidity.data.datasets[0].data.push(pH.toFixed(2));
+    });
+
+    //if (turbidity.data.labels.length > maxDisplayedDataPoints) {
+      //turbidity.data.labels.shift();
+      //turbidity.data.datasets[0].data.shift();
+    //}
+
+    //turbidity.update();
+
+    const currentturbidityElement = document.getElementById("card-turbidity");
+    const currentturbidityStatusElement = document.getElementById("card-turbidity-status");
+    currentturbidityElement.innerHTML = turbidity;
+    currentturbidityStatusElement.innerHTML = status;
+  };
+
+  const updateCharts = (temperatureData, pHData, waterLevelData, turbidityData) => {
+    updateTemperatureChartData(temperatureData);
+    updatepHChartData(pHData);
+    updateWaterLevelData(waterLevelData);
+    updateTurbidityData(turbidityData);
+  };
+
+  const startInterval = (temperatureUrl, pHUrl, waterLevelUrl, turbidityUrl) => {
     clearInterval(intervalId); // Clear previous interval
-    const fetchDataCallback = fetchData(temperatureUrl, pHUrl, updateCharts);
+    const fetchDataCallback = fetchData(temperatureUrl, pHUrl, waterLevelUrl, turbidityUrl, updateCharts);
     fetchDataCallback(); // Initial fetch
     intervalId = setInterval(fetchDataCallback, 5000);
   };
 
-  startInterval(temperatureEndpoint, pHEndpoint);
+  startInterval(temperatureEndpoint, pHEndpoint, waterLevelEndpoint, turbidityEndpoint);
 
   const timeRangeSelect = document.getElementById("timeRangeSelect");
   timeRangeSelect.addEventListener("change", () => {
@@ -174,49 +254,27 @@ document.addEventListener("DOMContentLoaded", () => {
       case "1":
         temperatureEndpoint = "/get_temperature?timeRange=lastHour";
         pHEndpoint = "/get_ph_level?timeRange=lastHour";
+        waterLevelEndpoint = "/get_water_level?timeRange=lastHour";
+        turbidityEndpoint = "/get_turbidity?timeRange=lastHour";
         break;
       case "2":
         temperatureEndpoint = "/get_temperature?timeRange=lastDay";
         pHEndpoint = "/get_ph_level?timeRange=lastDay";
+        waterLevelEndpoint = "/get_water_level?timeRange=lastDay";
+        turbidityEndpoint = "/get_turbidity?timeRange=lastDay";
         break;
       case "3":
         temperatureEndpoint = "/get_temperature?timeRange=lastMonth";
         pHEndpoint = "/get_ph_level?timeRange=lastMonth";
+        waterLevelEndpoint = "/get_water_level?timeRange=lastMonth";
+        turbidityEndpoint = "/get_turbidity?timeRange=lastMonth";
         break;
       default:
         temperatureEndpoint = "/get_temperature?timeRange=latest";
         pHEndpoint = "/get_ph_level?timeRange=latest";
+        waterLevelEndpoint = "/get_water_level?timeRange=latest";
+        turbidityEndpoint = "/get_turbidity?timeRange=latest";
     }
-    startInterval(temperatureEndpoint, pHEndpoint);
+    startInterval(temperatureEndpoint, pHEndpoint, waterLevelEndpoint, turbidityEndpoint)
   });
-
-  function fetchWaterLevel() {
-    fetch("/get_water_level")
-      .then((response) => response.json())
-      .then((data) => {
-        const waterLevel = data[1];
-        const currentWaterLevelElement = document.getElementById("card-water-level");
-        currentWaterLevelElement.innerHTML = waterLevel;
-      })
-      .catch((error) => console.error("Error fetching water level:", error));
-  }  
-
-  fetchWaterLevel(); 
-  setInterval(fetchWaterLevel, 5000);
-
-  function fetchTurbidity() {
-    fetch("/turbidity")
-      .then((response) => response.json())
-      .then((data) => {
-        const turbidity = data.turbidity[0];
-        const currentTurbidityElement = document.getElementById("card-turbidity");
-        currentTurbidityElement.innerHTML = turbidity;
-        const currentTurbidityStatusElement = document.getElementById("card-turbidity-status");
-        currentTurbidityStatusElement.innerHTML = data.turbidity[1];
-      })
-      .catch((error) => console.error("Error fetching turbidity:", error));
-  }
-
-  fetchTurbidity(); 
-  setInterval(fetchTurbidity, 5000);
 });
