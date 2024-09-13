@@ -164,12 +164,18 @@ def get_last_day_water_level_data():
     db = get_db()
     one_day_ago = time.time() * 1000 - 24 * 3600 * 1000
     cursor = db.execute(
-        '''SELECT AVG(CAST(water_level AS INTEGER)) as avg_water_level,
-                   strftime("%Y-%m-%d %H:00:00", datetime(timestamp/1000, "unixepoch", "localtime")) as avg_timestamp 
-           FROM water_level_log 
-           WHERE timestamp >= ? 
-           GROUP BY strftime("%Y-%m-%d %H", datetime(timestamp/1000, "unixepoch", "localtime")) 
-           ORDER BY timestamp ASC''',
+        '''SELECT avg_timestamp, water_level
+           FROM (
+               SELECT strftime("%Y-%m-%d %H:00:00", datetime(timestamp/1000, "unixepoch", "localtime")) as avg_timestamp,
+                      water_level,
+                      COUNT(*) as count
+               FROM water_level_log
+               WHERE timestamp >= ?
+               GROUP BY avg_timestamp, water_level
+               ORDER BY count DESC
+           ) as subquery
+           GROUP BY avg_timestamp
+           ORDER BY avg_timestamp ASC''',
         (one_day_ago,),
     )
     rows = cursor.fetchall()
