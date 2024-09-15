@@ -14,7 +14,6 @@ def get_db():
         g.db.row_factory = sqlite3.Row
     return g.db
 
-
 def create_tables():
     with app.app_context():
         db = get_db()
@@ -22,12 +21,50 @@ def create_tables():
             db.cursor().executescript(f.read())
         db.commit()
 
-
 def close_db(e=None):
     db = g.pop("db", None)
     if db is not None:
         db.close()
 
+def get_all_data():
+    db = get_db()
+    cursor = db.execute('''
+        SELECT 
+            p.timestamp AS timestamp, 
+            p.ph AS ph, 
+            p.status AS ph_status, 
+            t.celsius AS temp_celsius, 
+            t.fahrenheit AS temp_fahrenheit, 
+            t.status AS temp_status, 
+            u.turbidity AS turbidity, 
+            u.status AS turbidity_status, 
+            w.water_level AS water_level
+        FROM ph_level_log p
+        LEFT JOIN temperature_log t ON p.timestamp = t.timestamp
+        LEFT JOIN turbidity_log u ON p.timestamp = u.timestamp
+        LEFT JOIN water_level_log w ON p.timestamp = w.timestamp
+        ORDER BY p.timestamp ASC
+    ''')
+    rows = cursor.fetchall()
+    cursor.close()
+
+    if rows:
+        data_list = [
+            [
+                row["timestamp"],
+                row["ph"],
+                row["ph_status"],
+                row["temp_celsius"],
+                row["temp_fahrenheit"],
+                row["temp_status"],
+                row["turbidity"],
+                row["turbidity_status"],
+                row["water_level"]
+            ] for row in rows
+        ]
+        return data_list
+
+    return None
 
 def save_temp_data(timestamp, celsius, fahrenheit, status):
     db = get_db()
@@ -56,7 +93,6 @@ def get_last_hour_temperature_data():
         return data_list
 
     return None
-
 
 def get_last_day_temperature_data():
     db = get_db()
@@ -127,7 +163,6 @@ def get_last_hour_water_level_data():
 
     return None
 
-
 def get_last_day_water_level_data():
     db = get_db()
     one_day_ago = time.time() * 1000 - 24 * 3600 * 1000
@@ -158,7 +193,6 @@ def get_last_day_water_level_data():
 
     return None
 
-
 def get_last_hour_ph_level_data():
     db = get_db()
     one_hour_ago = time.time() * 1000 - 3600 * 1000
@@ -177,7 +211,6 @@ def get_last_hour_ph_level_data():
         return data_list
 
     return None
-
 
 def get_last_day_ph_level_data():
     db = get_db()
@@ -221,7 +254,6 @@ def get_last_hour_turbidity_data():
         return data_list
 
     return None
-
 
 def get_last_day_turbidity_data():
     db = get_db()
