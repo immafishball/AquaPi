@@ -217,6 +217,7 @@ def get_last_day_ph_level_data():
     one_day_ago = time.time() * 1000 - 24 * 3600 * 1000
     cursor = db.execute(
         '''SELECT AVG(ph) as avg_ph,
+                   MAX(status) as status,  -- Get the most recent status
                    strftime("%Y-%m-%d %H:00:00", datetime(timestamp/1000, "unixepoch", "localtime")) as avg_timestamp 
            FROM ph_level_log 
            WHERE timestamp >= ? 
@@ -230,7 +231,7 @@ def get_last_day_ph_level_data():
     if rows:
         # Extract only the values from each row
         data_list = [
-            [row["avg_timestamp"], row["avg_ph"]] for row in rows
+            [row["avg_timestamp"], row["avg_ph"], row["status"]] for row in rows
         ]
         return data_list
 
