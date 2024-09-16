@@ -30,6 +30,7 @@ body::-webkit-scrollbar-thumb {
 main {
   margin-left: 5rem;
   padding: 1rem;
+  z-index: 1;
 }
 
 .navbar {
@@ -37,6 +38,7 @@ main {
   background-color: var(--bg-primary);
   transition: width 600ms ease;
   overflow: hidden;
+  z-index: 1000;
 }
 
 .navbar-nav {

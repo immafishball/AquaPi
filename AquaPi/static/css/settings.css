@@ -1,0 +1,9 @@
+#dataTableButtons {
+    margin-bottom: 10px;
+    text-align: left;
+}
+
+.dt-button {
+    margin-right: 5px;
+    font-size: 12px;
+}

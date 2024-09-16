@@ -103,8 +103,6 @@ def read_water_sensor(timestamp=None):
 
     return timestamp, water_level
 
-
-
 def read_pump_status(pump_number):
     # Assuming you have separate GPIO pins for each water pump
     pump_pin = WATER_PUMP_PIN_1 if pump_number == 1 else WATER_PUMP_PIN_2
@@ -114,16 +112,13 @@ def read_pump_status(pump_number):
 
     return "On" if pump_status == GPIO.HIGH else "Off"
 
-
 def fill_water_on():
     # Turn on water pump
     GPIO.output(WATER_PUMP_PIN_1, GPIO.HIGH)
 
-
 def fill_water_off():
     # Turn off water pump
     GPIO.output(WATER_PUMP_PIN_1, GPIO.LOW)
-
 
 def read_turbidity(timestamp=None):
     timestamp = time.time() * 1000  # Get current timestamp in milliseconds
@@ -146,22 +141,21 @@ ph = DFRobot_PH()
 
 def read_ph_level(timestamp=None):
     ph.begin()
-    val = board.get_adc_value(board.A3)
+    val = board.get_adc_value(board.A0)
     pH = ph.read_PH(val, 25)
     timestamp = time.time() * 1000  # Get current timestamp in milliseconds
 
-    if (val > 1320 and val < 1678):
-        status = "Neutral"
-    elif (val > 1854 and val < 2210):
+    if pH < 7:
         status = "Acidic"
+    elif pH == 7:
+        status = "Neutral"
     else:
-        status = "Unknown"
+        status = "Alkaline"
 
     return timestamp, pH, status
-
     
 def calibrate_ph_level():
-    val = board.get_adc_value(board.A3)
+    val = board.get_adc_value(board.A0)
     ph.calibration(val)
 
 def reset_ph_level():
