@@ -40,12 +40,6 @@ $(document).ready(function() {
                 }
             }
         ],
-        language: {
-            paginate: {
-                next: '&#x27A1;', // or '→'
-                previous: '&#x2B05;' // or '←'
-            }
-        },
         stateSave: true,  // Save state to maintain pagination, search, etc.
         processing: true, // Show processing indicator
         serverSide: false, // Set to false since we're using client-side data
