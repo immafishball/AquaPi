@@ -123,6 +123,10 @@ def camera():
 def feeder():
     return render_template("feeder.html")
 
+@app.route("/settings")
+def settings():
+    return render_template("settings.html")
+
 @app.route("/get_temperature", methods=["GET"])
 def get_temperature():
     time_range = request.args.get("timeRange", "latest")
