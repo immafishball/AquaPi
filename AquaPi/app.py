@@ -35,7 +35,8 @@ from database import (
     get_last_hour_ph_level_data,
     get_last_day_ph_level_data,
     get_last_hour_turbidity_data,
-    get_last_day_turbidity_data
+    get_last_day_turbidity_data,
+    get_all_data
 )
 
 import time
@@ -70,7 +71,6 @@ def add_schedule():
     except Exception as e:
         return jsonify({"error": str(e)})
 
-
 # Get all schedules from SQLite
 @app.route("/get_schedules", methods=["GET"])
 def get_schedules():
@@ -81,7 +81,6 @@ def get_schedules():
         return jsonify(schedules_list)
     except Exception as e:
         return jsonify({"error": str(e)})
-
 
 # Remove schedule from SQLite
 @app.route("/remove_schedule", methods=["POST"])
@@ -96,11 +95,9 @@ def remove_schedule():
     except Exception as e:
         return jsonify({"error": str(e)})
 
-
 @app.route("/")
 def index():
     return render_template("index.html")
-
 
 @app.route("/favicon.ico")
 def favicon():
@@ -109,7 +106,6 @@ def favicon():
         "aquarium-favicon.png",
         mimetype="image/vnd.microsoft.icon",
     )
-
 
 @app.errorhandler(404)
 def not_found(e):
@@ -123,11 +119,9 @@ def dashboard():
 def camera():
     return render_template("camera.html")
 
-
 @app.route("/feeder")
 def feeder():
     return render_template("feeder.html")
-
 
 @app.route("/get_temperature", methods=["GET"])
 def get_temperature():
@@ -149,7 +143,6 @@ def get_temperature():
         return jsonify(data)
     return jsonify({"error": "Sensor not found"})
 
-
 @app.route("/get_water_level", methods=["GET"])
 def get_water_level():
     time_range = request.args.get("timeRange", "latest")
@@ -170,7 +163,6 @@ def get_water_level():
         return jsonify(data)
     return jsonify({"error": "Sensor not found"})
 
-
 @app.route("/get_turbidity", methods=["GET"])
 def get_turbidity():
     time_range = request.args.get("timeRange", "latest")
@@ -190,7 +182,6 @@ def get_turbidity():
         data = [timestamp, turbidity, status]
         return jsonify(data)
     return jsonify({"error": "Sensor not found"})
-
 
 @app.route("/get_ph_level", methods=["GET"])
 def get_ph_level():
@@ -226,7 +217,6 @@ def get_pump_status():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/feed_now", methods=["POST"])
 def servo_control():
     try:
@@ -235,14 +225,12 @@ def servo_control():
     except Exception as e:
         return jsonify({"error": str(e)})
 
-
 def gen(camera):
     """Video streaming generator function."""
     yield b"--frame\r\n"
     while True:
         frame = camera.get_frame()
         yield b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n--frame\r\n"
-
 
 @app.route("/video_feed")
 def video_feed():
@@ -254,6 +242,13 @@ def detect_objects():
     detected_objects = Camera.detected_objects
     Camera.detected_objects = []  # Clear the list after retrieving
     return jsonify(detected_objects)
+
+@app.route("/get_all_data", methods=["GET"])
+def get_all_data_endpoint():
+    data = get_all_data()
+    if data:
+        return jsonify(data)
+    return jsonify({"error": "No data found"}), 404
 
 def periodic_tasks():
     with app.app_context():
