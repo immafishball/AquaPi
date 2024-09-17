@@ -1,6 +1,8 @@
 $(document).ready(function() {
     // Initialize DataTable
     var table = $('#dataTable').DataTable({
+        scrollX: true,
+        responsive: true,
         autoWidth: true,
         responsive: true,
         order: [[8, 'desc']], // Default sort by timestamp column (index 8) in descending order
