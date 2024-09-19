@@ -158,6 +158,7 @@ The --break-system-packages flag in pip allows to override the externally-manage
     pip install flask_cors
     pip install smbus
     pip install cvzone
+    pip install apscheduler
     sudo apt-get install sqlite3
     sudo apt-get install sqlitebrowser
 

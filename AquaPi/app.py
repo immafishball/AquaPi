@@ -45,9 +45,14 @@ import os
 import atexit
 import threading
 
+from apscheduler.schedulers.background import BackgroundScheduler
+
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
+
+# Initialize APScheduler
+scheduler = BackgroundScheduler()
 
 # import camera driver
 if os.environ.get("CAMERA"):
@@ -256,42 +261,51 @@ def get_all_data_endpoint():
 
 def periodic_tasks():
     with app.app_context():
-        while True:
-            timestamp = time.time() * 1000  # Generate a single timestamp
-            
-            # Save temperature data
-            _, celsius, fahrenheit, status = read_water_temperature(timestamp)
-            if celsius is not None:
-                save_temp_data(timestamp, celsius, fahrenheit, status)
+        timestamp = time.time() * 1000  # Generate a single timestamp
+        
+        # Save temperature data
+        _, celsius, fahrenheit, status = read_water_temperature(timestamp)
+        if celsius is not None:
+            save_temp_data(timestamp, celsius, fahrenheit, status)
 
-            # Save water level data
-            _, water_level = read_water_sensor(timestamp)
-            if water_level is not None:
-                save_water_level_data(timestamp, water_level)
+        # Save water level data
+        _, water_level = read_water_sensor(timestamp)
+        if water_level is not None:
+            save_water_level_data(timestamp, water_level)
 
-            # Save pH level data
-            _, ph, status = read_ph_level(timestamp)
-            if ph is not None:
-                save_ph_level_data(timestamp, ph, status)
+        # Save pH level data
+        _, ph, status = read_ph_level(timestamp)
+        if ph is not None:
+            save_ph_level_data(timestamp, ph, status)
 
-            # Save turbidity data
-            _, turbidity, status = read_turbidity(timestamp)
-            if turbidity is not None:
-                save_turbidity_data(timestamp, turbidity, status)
+        # Save turbidity data
+        _, turbidity, status = read_turbidity(timestamp)
+        if turbidity is not None:
+            save_turbidity_data(timestamp, turbidity, status)
 
-            # Control water pump based on pH level
-            if ph > 6.90:
-                fill_water_off()  # Turn on water pump when pH is high
-            else:
-                fill_water_off()  # Turn off water pump when pH is low
-            
-            # Sleep for a period of time (e.g., 300 seconds)
-            time.sleep(300)
+        # Control water pump based on pH level
+        if ph > 6.90:
+            fill_water_off()  # Turn on water pump when pH is high
+        else:
+            fill_water_off()  # Turn off water pump when pH is low
 
-# Start the combined background thread
-periodic_thread = threading.Thread(target=periodic_tasks)
-periodic_thread.daemon = True
-periodic_thread.start()
+# Add job to the scheduler
+scheduler.add_job(
+    periodic_tasks,
+    'interval',
+    seconds=60,
+    max_instances=1,  # Ensure only one instance is running at a time
+    coalesce=True     # Merge missed executions
+)
+
+# Start the scheduler
+scheduler.start()
+
+# Cleanup function to stop the scheduler on exit
+def shutdown_scheduler():
+    scheduler.shutdown(wait=False)
+
+atexit.register(shutdown_scheduler)
 
 if __name__ == "__main__":
     atexit.register(cleanup)  # Register cleanup function
