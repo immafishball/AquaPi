@@ -139,20 +139,33 @@ board.set_adc_enable()
     
 ph = DFRobot_PH()
 
+# Variable to store the previous pH reading
+previous_pH = None
+
 def read_ph_level(timestamp=None):
+    global previous_pH
     ph.begin()
     val = board.get_adc_value(board.A0)
-    pH = ph.read_PH(val, 25)
-    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
+    current_pH = ph.read_PH(val, 25)
+    timestamp = time.time() * 1000
 
-    if pH < 7:
+    if previous_pH is None:
+        previous_pH = current_pH
+
+    # Check if the fluctuation is within ±2 of the previous reading
+    if abs(current_pH - previous_pH) > 2:
+        current_pH = previous_pH # -> Ignore value if there is sudden fluctuation in pH
+    else:
+        previous_pH = current_pH # -> Temporary fix for fluctuations
+
+    if current_pH < 7:
         status = "Acidic"
-    elif pH == 7:
+    elif current_pH == 7:
         status = "Neutral"
     else:
         status = "Alkaline"
 
-    return timestamp, pH, status
+    return timestamp, current_pH, status
     
 def calibrate_ph_level():
     val = board.get_adc_value(board.A0)
