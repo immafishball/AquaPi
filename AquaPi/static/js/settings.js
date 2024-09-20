@@ -24,6 +24,12 @@ $(document).ready(function() {
                 render: function(data) {
                     var date = new Date(data);
                     return date.toLocaleString();
+                },
+                type: 'num', // Ensure the column is sorted as numeric
+                // Use the timestamp value (in milliseconds) for sorting
+                render: function(data) {
+                    var date = new Date(data);
+                    return '<span data-order="' + data + '">' + date.toLocaleString() + '</span>';
                 }
             }
         ],
@@ -32,13 +38,6 @@ $(document).ready(function() {
                 targets: [0, 2, 3],  // Apply formatting to these columns
                 render: function(data) {
                     return parseFloat(data).toFixed(3);
-                }
-            },
-            {
-                targets: 8,  // Timestamp column
-                render: function(data) {
-                    var date = new Date(data);
-                    return date.toLocaleString();
                 }
             }
         ],
@@ -105,8 +104,6 @@ $(document).ready(function() {
             }
         });
     }
-    
-
     
     // Fetch data on initial load
     fetchData();
