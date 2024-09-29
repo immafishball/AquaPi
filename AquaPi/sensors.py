@@ -112,13 +112,21 @@ def read_pump_status(pump_number):
 
     return "On" if pump_status == GPIO.HIGH else "Off"
 
-def fill_water_on():
+def remove_water_on():
     # Turn on water pump
-    GPIO.output(WATER_PUMP_PIN_1, GPIO.HIGH)
+    GPIO.output(WATER_PUMP_PIN_1, GPIO.HIGH) #Pump 2 adds water
 
-def fill_water_off():
+def remove_water_off():
     # Turn off water pump
-    GPIO.output(WATER_PUMP_PIN_1, GPIO.LOW)
+    GPIO.output(WATER_PUMP_PIN_1, GPIO.LOW) #Pump 1 removes water
+
+def pump_water_on():
+    # Turn on water pump
+    GPIO.output(WATER_PUMP_PIN_2, GPIO.HIGH) #Pump 2 remove water
+
+def pump_water_off():
+    # Turn off water pump
+    GPIO.output(WATER_PUMP_PIN_2, GPIO.LOW) #Pump 1 remove water
 
 def read_turbidity(timestamp=None):
     timestamp = time.time() * 1000  # Get current timestamp in milliseconds
