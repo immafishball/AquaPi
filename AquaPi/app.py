@@ -13,8 +13,10 @@ from sensors import (
     read_water_temperature,
     read_water_sensor,
     read_turbidity,
-    fill_water_on,
-    fill_water_off,
+    pump_water_on,
+    pump_water_off,
+    remove_water_off,
+    remove_water_on,
     read_pump_status,
     read_ph_level,
     cleanup,
@@ -283,17 +285,53 @@ def periodic_tasks():
         if turbidity is not None:
             save_turbidity_data(timestamp, turbidity, status)
 
-        # Control water pump based on pH level
-        if ph > 6.90:
-            fill_water_off()  # Turn on water pump when pH is high
-        else:
-            fill_water_off()  # Turn off water pump when pH is low
-
 # Add job to the scheduler
 scheduler.add_job(
     periodic_tasks,
     'interval',
     seconds=60,
+    max_instances=1,  # Ensure only one instance is running at a time
+    coalesce=True     # Merge missed executions
+)
+
+def control_water_pumps():
+    with app.app_context():
+        timestamp = time.time() * 1000  # Generate a single timestamp
+
+        # Read sensor values
+        _, celsius, fahrenheit, temp_status = read_water_temperature()
+        _, water_level = read_water_sensor()
+        _, ph, ph_status = read_ph_level()
+
+        # Define thresholds (you can adjust these based on your requirements)
+        ph_threshold = 7.0
+        temp_upper_threshold = 28.0
+        temp_lower_threshold = 22.0
+        water_level_high = 'High'
+        water_level_low = 'Low'
+
+        # Control logic
+        if ph > ph_threshold:
+            pump_water_on()
+            remove_water_on()
+        elif celsius > temp_upper_threshold or celsius < temp_lower_threshold:
+            pump_water_on()
+            remove_water_on()
+        elif water_level == water_level_high:
+            pump_water_off()    #Remove Water till "OK"
+            remove_water_on()
+        elif water_level == water_level_low:
+            pump_water_on()     #Add Water till "OK"
+            remove_water_off()
+        else:
+            pump_water_off()
+            remove_water_off()  # Turn off pumps
+
+# Add job to the scheduler
+scheduler.add_job(
+    control_water_pumps,
+    'interval',
+    seconds=2,
     max_instances=1,  # Ensure only one instance is running at a time
     coalesce=True     # Merge missed executions
 )
