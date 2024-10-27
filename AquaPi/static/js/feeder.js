@@ -48,11 +48,17 @@ function feednow() {
     .then((data) => {
       // Handle the response from the server
       console.log(data);
-      alert(data.message); // You can customize this based on your needs
+      $("#modalMessage").text(data.message); // Set the message in the modal
+      $("#messageModal").modal({
+        fadeDuration: 200
+      });
     })
     .catch((error) => {
       console.error("Error:", error);
-      alert("Failed to control servo"); // You can customize this based on your needs
+      $("#modalMessage").text("Failed to control servo"); // Set error message
+      $("#messageModal").modal({
+        fadeDuration: 200
+      });
     });
 }
 

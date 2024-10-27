@@ -541,3 +541,7 @@ html {
     color: #d11a2a;
   }
 }
+
+.jquery-modal.blocker.current {
+  z-index: 10000;
+}

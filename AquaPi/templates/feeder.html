@@ -52,6 +52,10 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css"
     />
+    <link 
+      rel="stylesheet" 
+      href="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.css" 
+    />
 
     <title>AquaPi - Feeder</title>
   </head>
@@ -268,6 +272,9 @@
     </nav>
 
     <main>
+      <div id="messageModal" class="modal">
+        <p id="modalMessage"></p>
+      </div>
       <div class="w3-main" style="margin-left: 0px">
         <div class="w3-container w3-left">
           <h2 class="w3-white">Fish Feeder</h2>
@@ -312,5 +319,7 @@
     <script src="{{ url_for('static', filename='js/mdtimepicker.js') }}"></script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/chart.js/latest/Chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.0.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js"></script>
   </body>
 </html>
