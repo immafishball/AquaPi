@@ -41,14 +41,13 @@ This guide provides step-by-step instructions for how to set up YOLOv8 on the Ra
 
 ### 1. Install Raspberry Pi OS (64-bit)
 
-To get started, install Raspberry Pi OS (64-bit) on your microSD card. The recommended method is using the [Raspberry Pi Imager](https://downloads.raspberrypi.org/imager/imager_latest.exe), which provides a quick and straightforward way to set up Raspberry Pi OS and other operating systems. For better compatibility, use the [Raspberry Pi OS with desktop](https://downloads.raspberrypi.com/raspios_arm64/images/raspios_arm64-2024-07-04/2024-07-04-raspios-bookworm-arm64.img.xz).
+To get started, install Raspberry Pi OS (64-bit) on your microSD card. The recommended method is using the [Raspberry Pi Imager](https://downloads.raspberrypi.org/imager/imager_latest.exe), which provides a quick and straightforward way to set up Raspberry Pi OS and other operating systems. For better compatibility, use either [Raspberry Pi OS with desktop - Bookworm](https://downloads.raspberrypi.com/raspios_arm64/images/raspios_arm64-2024-07-04/2024-07-04-raspios-bookworm-arm64.img.xz) or [Raspberry Pi OS with desktop - Bullseye](https://downloads.raspberrypi.com/raspios_arm64/images/raspios_arm64-2024-07-04/2024-07-04-raspios-bookworm-arm64.img.xz).
 
 ### 2. Install Remote Desktop Connection (XRDP) Optional
 
 To install XRDP on your Raspberry Pi, run the following commands in the terminal:
 
-    sudo apt-get update
-    sudo apt-get upgrade
+    sudo apt update && sudo apt upgrade
     sudo apt install xrdp
  
 Additional configuration is required as Bookworm doesn't allow the default user "pi" to connect and also makes XRDP run slow.
@@ -64,16 +63,26 @@ Additional configuration is required as Bookworm doesn't allow the default user 
 #### 3. Change it to:
     #Option "DRMDevice" "/dev/dri/renderD128"
     Option "DRMDevice" ""
+    
+</details>
+
+<details><summary><b>Bullseye OS causes XRDP to lag</b></summary>
+
+#### 1. Open the XRDP configuration file:
+    sudo nano /usr/bin/startlxde-pi
+
+#### 2. Find the line:
+    $TOTAL_MEM -ge 2048
+
+#### 3. Change it to:
+    $TOTAL_MEM -ge 20480
+
+</details>
 
 #### Save and exit: **Ctrl + X**, **Ctrl + Y**, and **Enter**.
 
 #### Run this command to find your Raspberry Pi IP
     hostname -I
-    
-#### Finally, reboot the Raspberry Pi:
-    sudo reboot now
-
-</details>
 
 ### 3.Clone this Repository
     git clone https://github.com/immafishball/AquaPi.git
@@ -118,8 +127,8 @@ To make things easier, I wrote a shell script that will automatically download a
 <details><summary><b>EdgeTPU & YOLOv8</b></summary>
 
 #### 1. Create and Activate the Virtual Environment:
-    python3 -m venv --system-site-packages .venv
-    source .venv/bin/activate
+    python -m venv --system-site-packages env
+    source env/bin/activate
 
 #### 2. Install PyTorch Libraries:
     pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2
@@ -138,17 +147,11 @@ To make things easier, I wrote a shell script that will automatically download a
 ------------------------
 <details><summary><b>Project Dependencies</b></summary>
 
-#### 1. Dependencies for PiCamera2:
-    sudo apt update && sudo apt upgrade
-    sudo apt install libcap-dev libatlas-base-dev ffmpeg libopenjp2-7
-    sudo apt install libcamera-dev
-    sudo apt install libkms++-dev libfmt-dev libdrm-dev
-
-#### 2. Go back to the virtual environment:
+#### 1. Go back to the virtual environment:
     cd Projects
-    source .venv/bin/activate
+    source env/bin/activate
 
-#### 3. Dependencies for AquaPi:
+#### 2. Dependencies for AquaPi:
 The --break-system-packages flag in pip allows to override the externally-managed-environment error and install Python packages system-wide.
 
 **Note: Usage of this flag shouldn't be abused.**
@@ -162,14 +165,7 @@ The --break-system-packages flag in pip allows to override the externally-manage
     sudo apt-get install sqlite3
     sudo apt-get install sqlitebrowser
 
-
-#### 4. Install PiCamera2:
-The pip installation of rpi-libcamera and rpi-kms may take a while **(>3mins on pi4)** on the "Preparing metadata (pyproject.toml)" stage, as it is compiling the python bindings from scratch.
-
-    pip install wheel
-    pip install rpi-libcamera rpi-kms picamera2
-
-#### 5. Set Crontab for Fish Feeder:
+#### 3. Set Crontab for Fish Feeder:
 Well have to set a cron job scheduler for our fish feeder checking for every minute if there is exisiting timed set in our database.
 
     crontab -e
@@ -196,7 +192,7 @@ This project uses object detection models to identify objects in real-time from 
 
 #### Activate the Virtual Environment:
     cd Projects
-    source .venv/bin/activate
+    source env/bin/activate
     cd AquaPi
 
 <details><summary><b>YOLOv8 Instructions</b></summary>
