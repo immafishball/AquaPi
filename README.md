@@ -23,9 +23,9 @@ The project dependencies include Raspberry Pi OS (64-bit) - Bookworm, which serv
 
 <details><summary><b>Show Requirements</b></summary>
 
-- Raspberry Pi OS (64-bit) - Bookworm
+- Raspberry Pi OS (64-bit) - Bookworm or Bullseye
 - Visual Studio Code
-- Python (3.9)
+- Python (3.2 ~ 3.9.12)
 - YOLOv8
 - TensorFlow
 - XRDP
@@ -35,13 +35,13 @@ The project dependencies include Raspberry Pi OS (64-bit) - Bookworm, which serv
 
 ### ⚙️ Installation
 
-This guide provides step-by-step instructions for how to set up YOLOv8 on the Raspberry Pi and use it to run object detection models. It also shows how to set up the Coral USB Accelerator on the Pi and run Edge TPU detection models. It works for the Raspberry Pi 3 and Raspberry Pi 4 running Rasbpian Bookworm.
+This guide provides step-by-step instructions for how to set up YOLOv8 on the Raspberry Pi and use it to run object detection models. It also shows how to set up the Coral USB Accelerator on the Pi and run Edge TPU detection models. It works for the Raspberry Pi 3 and Raspberry Pi 4 running Rasbpian Bullseye or Bookworm.
 
 <details><summary><b>Show Instructions</b></summary>
 
 ### 1. Install Raspberry Pi OS (64-bit)
 
-To get started, install Raspberry Pi OS (64-bit) on your microSD card. The recommended method is using the [Raspberry Pi Imager](https://downloads.raspberrypi.org/imager/imager_latest.exe), which provides a quick and straightforward way to set up Raspberry Pi OS and other operating systems. For better compatibility, use either [Raspberry Pi OS with desktop - Bookworm](https://downloads.raspberrypi.com/raspios_arm64/images/raspios_arm64-2024-07-04/2024-07-04-raspios-bookworm-arm64.img.xz) or [Raspberry Pi OS with desktop - Bullseye](https://downloads.raspberrypi.com/raspios_arm64/images/raspios_arm64-2024-07-04/2024-07-04-raspios-bookworm-arm64.img.xz).
+To get started, install Raspberry Pi OS (64-bit) on your microSD card. The recommended method is using the [Raspberry Pi Imager](https://downloads.raspberrypi.org/imager/imager_latest.exe), which provides a quick and straightforward way to set up Raspberry Pi OS and other operating systems. For better compatibility, use either [Raspberry Pi OS with desktop - Bookworm](https://downloads.raspberrypi.com/raspios_arm64/images/raspios_arm64-2024-10-28/2024-10-22-raspios-bookworm-arm64.img.xz) or [Raspberry Pi OS with desktop - Bullseye](https://downloads.raspberrypi.com/raspios_arm64/images/raspios_arm64-2024-07-04/2024-07-04-raspios-bookworm-arm64.img.xz).
 
 ### 2. Install Remote Desktop Connection (XRDP) Optional
 
@@ -93,11 +93,12 @@ Next, we'll install YOLOv8, OpenCV, and all the dependencies needed for both pac
 
 To make things easier, I wrote a shell script that will automatically download and install all the packages and dependencies. Run it by issuing:
 
-<details><summary><b>Python 3.9.12</b></summary>
+<details><summary><b>Python 3.9.12 - Only for Bookworm</b></summary>
 
 #### 1. Go to Projects Directory:
     mv AquaPi Projects
     cd Projects
+    python -m venv --system-site-packages env
 
 #### 2. Download and Run the Pyenv Installer:
     curl https://pyenv.run | bash
@@ -120,6 +121,9 @@ To make things easier, I wrote a shell script that will automatically download a
 #### 7. Verify Python Installation:
     python --version
 
+#### 8. Reboot your Raspberry Pi:
+    sudo reboot now
+
 </details>
 
 ------------------------
@@ -127,6 +131,8 @@ To make things easier, I wrote a shell script that will automatically download a
 <details><summary><b>EdgeTPU & YOLOv8</b></summary>
 
 #### 1. Create and Activate the Virtual Environment:
+    mv AquaPi Projects
+    cd Projects
     python -m venv --system-site-packages env
     source env/bin/activate
 
@@ -145,6 +151,7 @@ To make things easier, I wrote a shell script that will automatically download a
 </details>
 
 ------------------------
+
 <details><summary><b>Project Dependencies</b></summary>
 
 #### 1. Go back to the virtual environment:
@@ -156,14 +163,8 @@ The --break-system-packages flag in pip allows to override the externally-manage
 
 **Note: Usage of this flag shouldn't be abused.**
 
-    pip install RPi.GPIO
-    pip install flask
-    pip install flask_cors
-    pip install smbus
-    pip install cvzone
-    pip install apscheduler
-    sudo apt-get install sqlite3
-    sudo apt-get install sqlitebrowser
+    pip install RPi.GPIO flask flask_cors smbus cvzone apscheduler numpy==1.24.4
+    sudo apt-get install --yes sqlite3 sqlitebrowser
 
 #### 3. Set Crontab for Fish Feeder:
 Well have to set a cron job scheduler for our fish feeder checking for every minute if there is exisiting timed set in our database.
