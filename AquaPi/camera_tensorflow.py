@@ -125,8 +125,7 @@ class Camera(BaseCamera):
     @staticmethod
     def frames():
         with Picamera2() as camera:
-            camera.pre_callback = print_af_state
-            
+
             # Camera configuration
             preview_width = imW
             preview_height = int(camera.sensor_resolution[1] * preview_width / camera.sensor_resolution[0])
@@ -135,7 +134,18 @@ class Camera(BaseCamera):
                 raw={"size": camera.sensor_resolution}
             )
             camera.configure(preview_config_raw)
-            camera.set_controls({"AfMode": controls.AfModeEnum.Continuous, "AfSpeed": controls.AfSpeedEnum.Fast})
+
+            # Check if controls are available
+            if camera.controls:
+                try:
+                    # Only set autofocus and speed if controls are available
+                    camera.set_controls({"AfMode": controls.AfModeEnum.Continuous, "AfSpeed": controls.AfSpeedEnum.Fast})
+                    camera.pre_callback = print_af_state
+                except RuntimeError as e:
+                    print(f"Warning: {e}. Autofocus not available, continuing without autofocus.")
+            else:
+                print("No controls available for this camera. Skipping autofocus settings.")
+
             camera.start(show_preview=False)
             #success = camera.autofocus_cycle()
             #camera.pre_callback = None

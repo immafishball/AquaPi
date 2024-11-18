@@ -53,8 +53,17 @@ preview_config_raw = cam.create_preview_configuration(
     raw={"size": cam.sensor_resolution}
 )
 cam.configure(preview_config_raw)
+
+if cam.controls:
+    try:
+        cam.set_controls({"AfMode": controls.AfModeEnum.Continuous})
+    except RuntimeError as e:
+        print(f"Warning: {e}. Autofocus not available, continuing without autofocus.")
+else:
+    print("No controls available for this camera. Skipping autofocus settings.")
+
 cam.start(show_preview=False)
-cam.set_controls({"AfMode": controls.AfModeEnum.Continuous})
+
 #success = cam.autofocus_cycle()
 #cam.pre_callback = None
 cam.start()
