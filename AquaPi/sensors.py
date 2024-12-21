@@ -14,14 +14,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 GPIO.setmode(GPIO.BCM)
 FS_IR02_PIN_1 = 18
 FS_IR02_PIN_2 = 17
-TURB_PIN = 12
 WATER_PUMP_PIN_1 = 9
 WATER_PUMP_PIN_2 = 10
 
 # Set up GPIO pins
 GPIO.setup(WATER_PUMP_PIN_1, GPIO.OUT)  # Water Pump #1
 GPIO.setup(WATER_PUMP_PIN_2, GPIO.OUT)  # Water Pump #2
-GPIO.setup(TURB_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # Turbidity
 GPIO.setup(FS_IR02_PIN_1, GPIO.IN)
 GPIO.setup(FS_IR02_PIN_2, GPIO.IN)
 
@@ -128,20 +126,6 @@ def pump_water_off():
     # Turn off water pump
     GPIO.output(WATER_PUMP_PIN_2, GPIO.LOW) #Pump 1 remove water
 
-def read_turbidity(timestamp=None):
-    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
-
-    # Read Turbidity
-    input_state = GPIO.input(TURB_PIN)
-    if input_state == False:
-        turbidity = "High"
-        status = "Clear"
-    else:
-        turbidity = "Low"
-        status = "Cloudy"
-
-    return timestamp, turbidity, status
-
 board_detect()
 board.set_adc_enable()
     
@@ -149,6 +133,20 @@ ph = DFRobot_PH()
 
 # Variable to store the previous pH reading
 previous_pH = None
+
+def read_turbidity(timestamp=None):
+    val = board.get_adc_value(board.A1)
+    current_turbidity = val * (5.0 / 1024.0)
+    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
+
+    if current_turbidity > 18:
+        turbidity = val
+        status = "Clear"
+    else:
+        turbidity = val
+        status = "Cloudy"
+
+    return timestamp, turbidity, status
 
 def read_ph_level(timestamp=None):
     global previous_pH
