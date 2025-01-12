@@ -15,7 +15,7 @@ $(document).ready(function() {
             { data: 'temp_cels', title: 'Temp °C', render: $.fn.dataTable.render.number(',', '.', 3) },
             { data: 'temp_fah', title: 'Temp °F', render: $.fn.dataTable.render.number(',', '.', 3) },
             { data: 'temp_status', title: 'Temp Status' },
-            { data: 'turbidity', title: 'Turbidity' },
+            { data: 'turbidity', title: 'Turbidity', render: $.fn.dataTable.render.number(',', '.', 3) },
             { data: 'turbidity_status', title: 'Turbidity Status' },
             { data: 'water_level', title: 'Water Level' },
             { 

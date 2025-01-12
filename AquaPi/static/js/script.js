@@ -227,7 +227,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const currentturbidityElement = document.getElementById("card-turbidity");
     const currentturbidityStatusElement = document.getElementById("card-turbidity-status");
-    currentturbidityElement.innerHTML = turbidity;
+    currentturbidityElement.innerHTML = `${turbidity.toFixed(2)}` + " NTU";
     currentturbidityStatusElement.innerHTML = status;
   };
 
