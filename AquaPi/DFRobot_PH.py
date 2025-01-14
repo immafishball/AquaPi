@@ -52,7 +52,7 @@ class DFRobot_PH():
           @brief   Calibrate the calibration data.
           @param voltage       Voltage value
         '''
-		if (voltage>1312 and voltage<1678):
+		if (voltage>1322 and voltage<1678):
 			print (">>>Buffer Solution:7.0")
 			f=open('phdata.txt','r+')
 			flist=f.readlines()
