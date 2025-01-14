@@ -1,6 +1,7 @@
 from database import get_db, create_tables, close_db, save_temp_data
 from DFRobot_RaspberryPi_Expansion_Board import DFRobot_Expansion_Board_IIC as Board
 from DFRobot_PH import DFRobot_PH
+from DFRobot_ADS1115 import ADS1115
 
 import RPi.GPIO as GPIO
 import os
@@ -8,20 +9,25 @@ import time
 import sys
 import glob
 
+ADS1115_REG_CONFIG_PGA_6_144V        = 0x00 # 6.144V range = Gain 2/3
+ADS1115_REG_CONFIG_PGA_4_096V        = 0x02 # 4.096V range = Gain 1
+ADS1115_REG_CONFIG_PGA_2_048V        = 0x04 # 2.048V range = Gain 2 (default)
+ADS1115_REG_CONFIG_PGA_1_024V        = 0x06 # 1.024V range = Gain 4
+ADS1115_REG_CONFIG_PGA_0_512V        = 0x08 # 0.512V range = Gain 8
+ADS1115_REG_CONFIG_PGA_0_256V        = 0x0A # 0.256V range = Gain 16
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 # Set up GPIO pins
 GPIO.setmode(GPIO.BCM)
 FS_IR02_PIN_1 = 18
 FS_IR02_PIN_2 = 17
-TURB_PIN = 12
 WATER_PUMP_PIN_1 = 9
 WATER_PUMP_PIN_2 = 10
 
 # Set up GPIO pins
 GPIO.setup(WATER_PUMP_PIN_1, GPIO.OUT)  # Water Pump #1
 GPIO.setup(WATER_PUMP_PIN_2, GPIO.OUT)  # Water Pump #2
-GPIO.setup(TURB_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # Turbidity
 GPIO.setup(FS_IR02_PIN_1, GPIO.IN)
 GPIO.setup(FS_IR02_PIN_2, GPIO.IN)
 
@@ -128,33 +134,36 @@ def pump_water_off():
     # Turn off water pump
     GPIO.output(WATER_PUMP_PIN_2, GPIO.LOW) #Pump 1 remove water
 
-def read_turbidity(timestamp=None):
-    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
-
-    # Read Turbidity
-    input_state = GPIO.input(TURB_PIN)
-    if input_state == False:
-        turbidity = "High"
-        status = "Clear"
-    else:
-        turbidity = "Low"
-        status = "Cloudy"
-
-    return timestamp, turbidity, status
-
 board_detect()
 board.set_adc_enable()
     
 ph = DFRobot_PH()
+ads1115 = ADS1115()
 
 # Variable to store the previous pH reading
 previous_pH = None
 
+ph.begin()
+
 def read_ph_level(timestamp=None):
     global previous_pH
-    ph.begin()
-    val = board.get_adc_value(board.A0)
-    current_pH = ph.read_PH(val, 25)
+    
+    #ph.begin()
+    #val = board.get_adc_value(board.A0)
+    #current_pH = ph.read_PH(val, 25)
+    
+    #Read your temperature sensor to execute temperature compensation
+    temperature = 25
+    #Set the IIC address
+    ads1115.setAddr_ADS1115(0x48)
+    #Sets the gain and input voltage range.
+    ads1115.setGain(ADS1115_REG_CONFIG_PGA_6_144V)
+    #Get the Digital Value of Analog of selected channel
+    adc0 = ads1115.readVoltage(0)
+    #Convert voltage to PH with temperature compensation
+    PH = ph.read_PH(adc0['r'],temperature)
+
+    current_pH = PH
     timestamp = time.time() * 1000
 
     if previous_pH is None:
@@ -176,8 +185,39 @@ def read_ph_level(timestamp=None):
     return timestamp, current_pH, status
     
 def calibrate_ph_level():
-    val = board.get_adc_value(board.A0)
-    ph.calibration(val)
+    temperature = 25
+    #Set the IIC address
+    ads1115.setAddr_ADS1115(0x48)
+    #Sets the gain and input voltage range.
+    ads1115.setGain(ADS1115_REG_CONFIG_PGA_6_144V)
+    #Get the Digital Value of Analog of selected channel
+    adc0 = ads1115.readVoltage(0)
+    print ("A0:%dmV "%(adc0['r']))
+    #Calibrate the calibration data
+    ph.calibration(adc0['r'])
 
 def reset_ph_level():
     ph.reset()
+
+def read_turbidity(timestamp=None):
+    #Read your temperature sensor to execute temperature compensation
+    temperature = 25
+    #Set the IIC address
+    ads1115.setAddr_ADS1115(0x48)
+    #Sets the gain and input voltage range.
+    ads1115.setGain(ADS1115_REG_CONFIG_PGA_6_144V)
+    #Get the Digital Value of Analog of selected channel
+    adc1 = ads1115.readVoltage(1)
+    #Convert the analog reading (which goes from 0 - 1023) to a voltage (0 - 5V):
+    current_turbidity = (adc1['r']) * (5.0 / 1024.0)
+
+    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
+
+    if current_turbidity > 18:
+        turbidity = current_turbidity
+        status = "Clear"
+    else:
+        turbidity = current_turbidity
+        status = "Cloudy"
+
+    return timestamp, turbidity, status
