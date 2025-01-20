@@ -20,8 +20,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 # Set up GPIO pins
 GPIO.setmode(GPIO.BCM)
-FS_IR02_PIN_1 = 18
-FS_IR02_PIN_2 = 17
+FS_IR02_PIN_1 = 17
+FS_IR02_PIN_2 = 18
 WATER_PUMP_PIN_1 = 9
 WATER_PUMP_PIN_2 = 10
 
@@ -148,9 +148,6 @@ ph.begin()
 def read_ph_level(timestamp=None):
     global previous_pH
     
-    #ph.begin()
-    #val = board.get_adc_value(board.A0)
-    #current_pH = ph.read_PH(val, 25)
     
     #Read your temperature sensor to execute temperature compensation
     temperature = 25
@@ -200,6 +197,7 @@ def reset_ph_level():
     ph.reset()
 
 def read_turbidity(timestamp=None):
+    global previous_turbidity
     #Read your temperature sensor to execute temperature compensation
     temperature = 25
     #Set the IIC address
@@ -213,6 +211,11 @@ def read_turbidity(timestamp=None):
 
     timestamp = time.time() * 1000  # Get current timestamp in milliseconds
 
+    if abs(current_turbidity - previous_turbidity) > 5:
+        current_turbidity = previous_turbidity
+    else:
+        previous_turbidity = current_turbidity
+        
     if current_turbidity > 18:
         turbidity = current_turbidity
         status = "Clear"
