@@ -77,6 +77,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const updateTemperatureChartData = (data) => {
     let celsius, fahrenheit, timestamp, status;
+    if (data.error && data.error === "Sensor not found") {
+      temperatureChart.data.labels = [];
+      temperatureChart.data.datasets[0].data = [];
+      temperatureChart.data.datasets[1].data = [];
+      temperatureChart.update();
+      
+      const currentTemperatureElement = document.getElementById("card-temperature");
+      const currentTemperatureStatusElement = document.getElementById("card-temperature-status");
+      currentTemperatureElement.innerHTML = "Not Found";
+      currentTemperatureStatusElement.innerHTML = "No Data Available";
+      return; // Exit early if no data available
+    }
+
     const isLastHourEndpoint = data[0] && Array.isArray(data[0]);
     const newDataPoints = isLastHourEndpoint ? data : [data];
 
@@ -227,7 +240,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const currentturbidityElement = document.getElementById("card-turbidity");
     const currentturbidityStatusElement = document.getElementById("card-turbidity-status");
-    currentturbidityElement.innerHTML = turbidity;
+    currentturbidityElement.innerHTML = `${turbidity.toFixed(2)}` + " NTU";
     currentturbidityStatusElement.innerHTML = status;
   };
 

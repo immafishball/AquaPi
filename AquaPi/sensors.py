@@ -20,6 +20,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 # Set up GPIO pins
 GPIO.setmode(GPIO.BCM)
+
 FS_IR02_PIN_1 = 17
 FS_IR02_PIN_2 = 18
 WATER_PUMP_PIN_1 = 9
@@ -138,6 +139,7 @@ board_detect()
 board.set_adc_enable()
     
 ph = DFRobot_PH()
+
 ads1115 = ADS1115()
 
 # Variable to store the previous pH reading
@@ -147,8 +149,6 @@ ph.begin()
 
 def read_ph_level(timestamp=None):
     global previous_pH
-    
-    
     #Read your temperature sensor to execute temperature compensation
     temperature = 25
     #Set the IIC address
