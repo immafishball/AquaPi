@@ -96,6 +96,7 @@ class Camera(BaseCamera):
             time.sleep(2)  # Allow camera to warm up
 
             stream = io.BytesIO()
+            last_capture_time = time.time()
             frame_count = 0
             start_time = time.time()
 
@@ -108,6 +109,15 @@ class Camera(BaseCamera):
                     # Convert the captured frame into a format suitable for OpenCV
                     nparr = np.frombuffer(stream.getvalue(), np.uint8)
                     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                    # Capture image every 10 seconds
+                    current_time = time.time()
+                    if current_time - last_capture_time >= 10:
+                        timestamp = datetime.now().strftime('%B %d, %Y - %H%M%S')
+                        filename = f"Captured - {timestamp}.jpg"
+                        print(filename)
+                        cv2.imwrite(os.path.join(capture_folder, filename), frame)
+                        last_capture_time = current_time
 
                     # Object detection
                     results = model.predict(
