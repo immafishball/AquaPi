@@ -40,6 +40,10 @@ resW, resH = args.resolution.split('x')
 imW, imH = int(resW), int(resH)
 use_TPU = args.edgetpu
 
+# Create Capture folder if it doesn't exist
+capture_folder = os.path.join(os.getcwd(), 'Capture')
+os.makedirs(capture_folder, exist_ok=True)
+
 # Import TensorFlow libraries
 # If tflite_runtime is installed, import interpreter from tflite_runtime, else import from regular tensorflow
 # If using Coral Edge TPU, import the load_delegate library
@@ -153,6 +157,7 @@ class Camera(BaseCamera):
             time.sleep(2)  # Allow camera to warm up
 
             stream = io.BytesIO()
+            last_capture_time = time.time()
 
             try:
                 while True:
@@ -161,6 +166,15 @@ class Camera(BaseCamera):
 
                     nparr = np.frombuffer(stream.getvalue(), np.uint8)
                     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                    # Capture image every 10 seconds
+                    current_time = time.time()
+                    if current_time - last_capture_time >= 10:
+                        timestamp = datetime.now().strftime('%B %d, %Y - %H%M%S')
+                        filename = f"Captured - {timestamp}.jpg"
+                        print(filename)
+                        cv2.imwrite(os.path.join(capture_folder, filename), frame)
+                        last_capture_time = current_time
 
                     # Start timer (for calculating frame rate)
                     t1 = cv2.getTickCount()
