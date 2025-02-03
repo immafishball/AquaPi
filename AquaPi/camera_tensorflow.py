@@ -29,6 +29,8 @@ parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If t
                     default='1280x720')
 parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
                     action='store_true')
+parser.add_argument('--capture', help='Enable image capture every 10 seconds',
+                    action='store_true')
 
 args = parser.parse_args()
 
@@ -39,6 +41,7 @@ min_conf_threshold = float(args.threshold)
 resW, resH = args.resolution.split('x')
 imW, imH = int(resW), int(resH)
 use_TPU = args.edgetpu
+capture_image = args.capture
 
 # Create Capture folder if it doesn't exist
 capture_folder = os.path.join(os.getcwd(), 'Capture')
@@ -166,15 +169,16 @@ class Camera(BaseCamera):
 
                     nparr = np.frombuffer(stream.getvalue(), np.uint8)
                     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-                    # Capture image every 10 seconds
-                    current_time = time.time()
-                    if current_time - last_capture_time >= 10:
-                        timestamp = datetime.now().strftime('%B %d, %Y - %H%M%S')
-                        filename = f"Captured - {timestamp}.jpg"
-                        print(filename)
-                        cv2.imwrite(os.path.join(capture_folder, filename), frame)
-                        last_capture_time = current_time
+                    
+                    if capture_image:
+                        # Capture image every 10 seconds
+                        current_time = time.time()
+                        if current_time - last_capture_time >= 10:
+                            timestamp = datetime.now().strftime('%B %d, %Y - %H%M%S')
+                            filename = f"Captured - {timestamp}.jpg"
+                            print(filename)
+                            cv2.imwrite(os.path.join(capture_folder, filename), frame)
+                            last_capture_time = current_time
 
                     # Start timer (for calculating frame rate)
                     t1 = cv2.getTickCount()
