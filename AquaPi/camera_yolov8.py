@@ -28,6 +28,9 @@ parser.add_argument('--imgsz', help='Defines the image size for inference. Can b
                     default=240)
 parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If the webcam does not support the resolution entered, errors may occur.',
                     default='1280x720')
+parser.add_argument('--capture', help='Enable image capture every 10 seconds',
+                    action='store_true')
+
 args = parser.parse_args()
 
 MODEL_NAME = args.modeldir
@@ -37,6 +40,7 @@ imgsz_count = int(args.imgsz)
 min_conf_threshold = float(args.threshold)
 resW, resH = args.resolution.split('x')
 imW, imH = int(resW), int(resH)
+capture_image = args.capture
 
 # Get path to current working directory
 CWD_PATH = os.getcwd()
@@ -110,14 +114,15 @@ class Camera(BaseCamera):
                     nparr = np.frombuffer(stream.getvalue(), np.uint8)
                     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-                    # Capture image every 10 seconds
-                    current_time = time.time()
-                    if current_time - last_capture_time >= 10:
-                        timestamp = datetime.now().strftime('%B %d, %Y - %H%M%S')
-                        filename = f"Captured - {timestamp}.jpg"
-                        print(filename)
-                        cv2.imwrite(os.path.join(capture_folder, filename), frame)
-                        last_capture_time = current_time
+                    if capture_image:
+                        # Capture image every 10 seconds
+                        current_time = time.time()
+                        if current_time - last_capture_time >= 10:
+                            timestamp = datetime.now().strftime('%B %d, %Y - %H%M%S')
+                            filename = f"Captured - {timestamp}.jpg"
+                            print(filename)
+                            cv2.imwrite(os.path.join(capture_folder, filename), frame)
+                            last_capture_time = current_time
 
                     # Object detection
                     results = model.predict(
