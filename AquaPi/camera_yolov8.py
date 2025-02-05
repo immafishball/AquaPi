@@ -12,7 +12,7 @@ from libcamera import controls
 
 from base_camera import BaseCamera
 from ultralytics import YOLO
-
+from datetime import datetime
 
 # Define and parse input arguments
 parser = argparse.ArgumentParser()
@@ -42,6 +42,10 @@ resW, resH = args.resolution.split('x')
 imW, imH = int(resW), int(resH)
 capture_image = args.capture
 
+# Create Capture folder if it doesn't exist
+capture_folder = os.path.join(os.getcwd(), 'Capture')
+os.makedirs(capture_folder, exist_ok=True)
+
 # Get path to current working directory
 CWD_PATH = os.getcwd()
 
@@ -58,11 +62,16 @@ model = YOLO(PATH_TO_CKPT, verbose=False)
 with open(PATH_TO_LABELS, "r") as file:
     class_list = file.read().split("\n")
 
+# Autofocus state storage
+af_state_info = {"af_state": "Unknown", "lens_position": "Unknown"}
+
 # Autofocus callback
 def print_af_state(request):
     md = request.get_metadata()
     af_state = ("Idle", "Scanning", "Success", "Fail")[md['AfState']]
     lens_position = md.get('LensPosition')
+    af_state_info["af_state"] = af_state
+    af_state_info["lens_position"] = lens_position
     print(f"AF State: {af_state}, Lens Position: {lens_position}")
 
 # Define the Camera class
@@ -119,7 +128,8 @@ class Camera(BaseCamera):
                         current_time = time.time()
                         if current_time - last_capture_time >= 10:
                             timestamp = datetime.now().strftime('%B %d, %Y - %H%M%S')
-                            filename = f"Captured - {timestamp}.jpg"
+                            af_state = af_state_info['af_state']
+                            filename = f"Captured - {timestamp} - AF_{af_state}.jpg"
                             print(filename)
                             cv2.imwrite(os.path.join(capture_folder, filename), frame)
                             last_capture_time = current_time
