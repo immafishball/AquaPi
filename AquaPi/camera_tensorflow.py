@@ -118,11 +118,16 @@ else: # This is a TF1 model
 
 freq = cv2.getTickFrequency()
 
+# Autofocus state storage
+af_state_info = {"af_state": "Unknown", "lens_position": "Unknown"}
+
 # Autofocus callback
 def print_af_state(request):
     md = request.get_metadata()
     af_state = ("Idle", "Scanning", "Success", "Fail")[md['AfState']]
     lens_position = md.get('LensPosition')
+    af_state_info["af_state"] = af_state
+    af_state_info["lens_position"] = lens_position
     print(f"AF State: {af_state}, Lens Position: {lens_position}")
 
 # Define the Camera class    
@@ -175,7 +180,8 @@ class Camera(BaseCamera):
                         current_time = time.time()
                         if current_time - last_capture_time >= 10:
                             timestamp = datetime.now().strftime('%B %d, %Y - %H%M%S')
-                            filename = f"Captured - {timestamp}.jpg"
+                            af_state = af_state_info['af_state']
+                            filename = f"Captured - {timestamp} - AF_{af_state}.jpg"
                             print(filename)
                             cv2.imwrite(os.path.join(capture_folder, filename), frame)
                             last_capture_time = current_time
