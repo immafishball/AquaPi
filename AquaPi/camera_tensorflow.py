@@ -29,6 +29,8 @@ parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If t
                     default='1280x720')
 parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
                     action='store_true')
+parser.add_argument('--capture', help='Enable image capture every 10 seconds',
+                    action='store_true')
 
 args = parser.parse_args()
 
@@ -39,6 +41,11 @@ min_conf_threshold = float(args.threshold)
 resW, resH = args.resolution.split('x')
 imW, imH = int(resW), int(resH)
 use_TPU = args.edgetpu
+capture_image = args.capture
+
+# Create Capture folder if it doesn't exist
+capture_folder = os.path.join(os.getcwd(), 'Capture')
+os.makedirs(capture_folder, exist_ok=True)
 
 # Import TensorFlow libraries
 # If tflite_runtime is installed, import interpreter from tflite_runtime, else import from regular tensorflow
@@ -111,11 +118,16 @@ else: # This is a TF1 model
 
 freq = cv2.getTickFrequency()
 
+# Autofocus state storage
+af_state_info = {"af_state": "Unknown", "lens_position": "Unknown"}
+
 # Autofocus callback
 def print_af_state(request):
     md = request.get_metadata()
     af_state = ("Idle", "Scanning", "Success", "Fail")[md['AfState']]
     lens_position = md.get('LensPosition')
+    af_state_info["af_state"] = af_state
+    af_state_info["lens_position"] = lens_position
     print(f"AF State: {af_state}, Lens Position: {lens_position}")
 
 # Define the Camera class    
@@ -153,6 +165,7 @@ class Camera(BaseCamera):
             time.sleep(2)  # Allow camera to warm up
 
             stream = io.BytesIO()
+            last_capture_time = time.time()
 
             try:
                 while True:
@@ -161,6 +174,17 @@ class Camera(BaseCamera):
 
                     nparr = np.frombuffer(stream.getvalue(), np.uint8)
                     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                    
+                    if capture_image:
+                        # Capture image every 10 seconds
+                        current_time = time.time()
+                        if current_time - last_capture_time >= 10:
+                            timestamp = datetime.now().strftime('%B %d, %Y - %H%M%S')
+                            af_state = af_state_info['af_state']
+                            filename = f"Captured - {timestamp} - AF_{af_state}.jpg"
+                            print(filename)
+                            cv2.imwrite(os.path.join(capture_folder, filename), frame)
+                            last_capture_time = current_time
 
                     # Start timer (for calculating frame rate)
                     t1 = cv2.getTickCount()
