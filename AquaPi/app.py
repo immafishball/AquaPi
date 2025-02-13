@@ -65,6 +65,39 @@ else:
 # Raspberry Pi camera module (requires picamera package)
 # from camera_pi import Camera
 
+sensor_data = {
+    "temperature": None,
+    "water_level": None,
+    "ph": None,
+    "turbidity": None,
+}
+
+def read_sensors():
+    while True:
+        timestamp = time.time() * 1000  # Current timestamp
+        
+        _, celsius, fahrenheit, status = read_water_temperature(timestamp)
+        if celsius is not None:
+            sensor_data["temperature"] = (timestamp, celsius, fahrenheit, status)
+        
+        _, water_level = read_water_sensor(timestamp)
+        if water_level is not None:
+            sensor_data["water_level"] = (timestamp, water_level)
+
+        _, ph, status = read_ph_level(timestamp)
+        if ph is not None:
+            sensor_data["ph"] = (timestamp, ph, status)
+
+        _, turbidity, status = read_turbidity(timestamp)
+        if turbidity is not None:
+            sensor_data["turbidity"] = (timestamp, turbidity, status)
+
+        time.sleep(1)  # Adjust sampling rate
+
+# Start the background thread for reading sensors
+sensor_thread = threading.Thread(target=read_sensors, daemon=True)
+sensor_thread.start()
+
 # Add schedule to SQLite
 @app.route("/add_schedule", methods=["POST"])
 def add_schedule():
@@ -139,7 +172,7 @@ def get_temperature():
     time_range = request.args.get("timeRange", "latest")
 
     if time_range == "latest":
-        timestamp, celsius, fahrenheit, status = read_water_temperature()
+        data = sensor_data["temperature"]
     elif time_range == "lastHour":
         data = get_last_hour_temperature_data()
     elif time_range == "lastDay":
@@ -159,7 +192,7 @@ def get_water_level():
     time_range = request.args.get("timeRange", "latest")
 
     if time_range == "latest":
-        timestamp, water_level = read_water_sensor()
+        data = sensor_data["water_level"]
     elif time_range == "lastHour":
         data = get_last_hour_water_level_data()
     elif time_range == "lastDay":
@@ -179,14 +212,14 @@ def get_turbidity():
     time_range = request.args.get("timeRange", "latest")
 
     if time_range == "latest":
-        timestamp, turbidity, status = read_turbidity()
+        data = sensor_data["turbidity"]
     elif time_range == "lastHour":
         data = get_last_hour_turbidity_data()
     elif time_range == "lastDay":
         data = get_last_day_turbidity_data()
     else:
         return jsonify({"error": "Invalid time range"})
- 
+
     if "data" in locals():
         return jsonify(data)
     elif turbidity is not None:
@@ -199,7 +232,7 @@ def get_ph_level():
     time_range = request.args.get("timeRange", "latest")
 
     if time_range == "latest":
-        timestamp, ph, status = read_ph_level()
+        data = sensor_data["ph"]
     elif time_range == "lastHour":
         data = get_last_hour_ph_level_data()
     elif time_range == "lastDay":
