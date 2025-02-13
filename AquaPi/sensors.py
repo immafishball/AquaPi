@@ -109,9 +109,6 @@ def pump_water_off():
     # Turn off water pump
     GPIO.output(WATER_PUMP_PIN_2, GPIO.LOW) #Pump 1 remove water
 
-board_detect()
-board.set_adc_enable()
-    
 ph = DFRobot_PH()
 
 #Read your temperature sensor to execute temperature compensation
@@ -181,12 +178,12 @@ def read_turbidity(timestamp=None):
         previous_turbidity = current_turbidity
 
     # Check if the fluctuation is within ±5 of the previous reading
-    if abs(current_turbidity - previous_turbidity) > 5:
+    if abs(current_turbidity - previous_turbidity) > 2:
         current_turbidity = previous_turbidity
     else:
         previous_turbidity = current_turbidity
         
-    if current_turbidity > 18:
+    if current_turbidity < 5:
         status = "Clear"
     else:
         status = "Cloudy"

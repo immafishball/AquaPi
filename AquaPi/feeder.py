@@ -32,7 +32,7 @@ def feed_now():
     try:
         print("set all pwm channels duty to 30%")
         board.set_pwm_duty(0, 60)   # Set all pwm channels duty
-        time.sleep(2)
+        time.sleep(5)
 
         print("set part pwm channels duty to 60%")
         board.set_pwm_duty(0, 0)   # Set pwm0 channels duty
