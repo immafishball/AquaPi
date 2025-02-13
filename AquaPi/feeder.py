@@ -2,6 +2,9 @@ import sqlite3
 import time
 import RPi.GPIO as GPIO
 import os
+import time
+import sys
+from sensor_manager import get_board
 
 DATABASE = '/home/pi/Projects/AquaPi/sensor_data.db'
 
@@ -23,13 +26,30 @@ def create_table():
 # Add the following line to ensure the table exists
 create_table()
 
+board = get_board()
+
 def feed_now():
+    try:
+        print("set all pwm channels duty to 30%")
+        board.set_pwm_duty(0, 60)   # Set all pwm channels duty
+        time.sleep(2)
+
+        print("set part pwm channels duty to 60%")
+        board.set_pwm_duty(0, 0)   # Set pwm0 channels duty
+        #board.set_pwm_duty(1, 70)  # Set pwm1 channels duty
+        #board.set_pwm_duty(2, 80)  # Set pwm2 channels duty
+        #board.set_pwm_duty(3, 90)  # Set pwm3 channels duty
+        time.sleep(1)
+    except Exception as e:
+        raise e
+        
+def feed_now_old():
     try:
         # Code to control servo motor here
         GPIO.setup(SERVO_PIN, GPIO.OUT)
         pwm = GPIO.PWM(SERVO_PIN, 50)
         pwm.start(0)
-        pwm.ChangeDutyCycle(10)
+        pwm.ChangeDutyCycle(50)
         time.sleep(2)
         pwm.stop()
     except Exception as e:
