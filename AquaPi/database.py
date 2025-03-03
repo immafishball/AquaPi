@@ -9,10 +9,11 @@ current_dir = os.getcwd()
 DATABASE = '/home/pi/Projects/AquaPi/sensor_data.db'
 
 def get_db():
-    if "db" not in g:
-        g.db = sqlite3.connect(DATABASE)
-        g.db.row_factory = sqlite3.Row
-    return g.db
+    # Always create a new connection for real-time data
+    db = sqlite3.connect(DATABASE)
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA journal_mode=WAL")  # Enable WAL for better concurrency
+    return db
 
 def create_tables():
     with app.app_context():
@@ -38,11 +39,14 @@ def get_all_data():
             t.status AS temp_status, 
             u.turbidity AS turbidity, 
             u.status AS turbidity_status, 
-            w.water_level AS water_level
+            w.water_level AS water_level,
+            o.operation AS operation,
+            o.status AS operation_status
         FROM ph_level_log p
         LEFT JOIN temperature_log t ON p.timestamp = t.timestamp
         LEFT JOIN turbidity_log u ON p.timestamp = u.timestamp
         LEFT JOIN water_level_log w ON p.timestamp = w.timestamp
+        LEFT JOIN operation_log o ON p.timestamp = o.timestamp
         ORDER BY p.timestamp ASC
     ''')
     rows = cursor.fetchall()
@@ -59,12 +63,22 @@ def get_all_data():
                 row["temp_status"],
                 row["turbidity"],
                 row["turbidity_status"],
-                row["water_level"]
+                row["water_level"],
+                row["operation"],
+                row["operation_status"]
             ] for row in rows
         ]
         return data_list
 
     return None
+
+def save_operation_data(timestamp, operation, status):
+    db = get_db()
+    db.execute(
+        "INSERT INTO operation_log (timestamp, operation, status) VALUES (?, ?, ?)",
+        (timestamp, operation, status),
+    )
+    db.commit()
 
 def save_temp_data(timestamp, celsius, fahrenheit, status):
     db = get_db()
@@ -73,7 +87,50 @@ def save_temp_data(timestamp, celsius, fahrenheit, status):
         (timestamp, celsius, fahrenheit, status),
     )
     db.commit()
-        
+
+def get_last_hour_operation_data():
+    db = get_db()
+    one_hour_ago = time.time() * 1000 - 3600 * 1000
+    cursor = db.execute(
+        "SELECT timestamp, operation, status FROM operation_log WHERE timestamp >= ? ORDER BY timestamp ASC",
+        (one_hour_ago,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+
+    if rows:
+        data_list = [
+            [row["timestamp"], row["operation"], row["status"]] for row in rows
+        ]
+        return data_list
+
+    return None
+
+def get_last_day_operation_data():
+    db = get_db()
+    # Calculate the timestamp for one day ago in milliseconds
+    one_day_ago = time.time() * 1000 - 24 * 3600 * 1000
+    cursor = db.execute(
+        '''SELECT strftime("%Y-%m-%d %H:00:00", datetime(timestamp/1000, "unixepoch", "localtime")) as avg_timestamp,
+                  operation,
+                  MAX(status) as status
+           FROM operation_log
+           WHERE timestamp >= ?
+           GROUP BY avg_timestamp, operation
+           ORDER BY avg_timestamp ASC''',
+        (one_day_ago,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+
+    if rows:
+        data_list = [
+            [row["avg_timestamp"], row["operation"], row["status"]] for row in rows
+        ]
+        return data_list
+
+    return None
+
 def get_last_hour_temperature_data():
     db = get_db()
     # Calculate the timestamp for one hour ago in milliseconds
@@ -119,6 +176,14 @@ def get_last_day_temperature_data():
         return data_list
 
     return None
+
+def save_operation_log(timestamp, operation):
+    db = get_db()
+    db.execute(
+        "INSERT INTO operation_log (timestamp, operation, status) VALUES (?, ?, ?)",
+        (timestamp, operation),
+    )
+    db.commit()
 
 def save_water_level_data(timestamp, water_level):
     db = get_db()
