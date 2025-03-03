@@ -13,6 +13,7 @@ from sensors import (
     read_water_temperature,
     read_water_sensor,
     read_turbidity,
+    read_operation_status,
     pump_water_on,
     pump_water_off,
     remove_water_off,
@@ -30,6 +31,7 @@ from database import (
     save_water_level_data,
     save_ph_level_data,
     save_turbidity_data,
+    save_operation_data,
     get_last_hour_temperature_data,
     get_last_day_temperature_data,
     get_last_hour_water_level_data,
@@ -38,6 +40,8 @@ from database import (
     get_last_day_ph_level_data,
     get_last_hour_turbidity_data,
     get_last_day_turbidity_data,
+    get_last_hour_operation_data,
+    get_last_day_operation_data,
     get_all_data
 )
 
@@ -70,33 +74,75 @@ sensor_data = {
     "water_level": None,
     "ph": None,
     "turbidity": None,
+    "operation": None,
 }
 
 def read_sensors():
-    while True:
-        timestamp = time.time() * 1000  # Current timestamp
-        
-        _, celsius, fahrenheit, status = read_water_temperature(timestamp)
-        if celsius is not None:
-            sensor_data["temperature"] = (timestamp, celsius, fahrenheit, status)
-        
-        _, water_level = read_water_sensor(timestamp)
-        if water_level is not None:
-            sensor_data["water_level"] = (timestamp, water_level)
+    with app.app_context():
+        while True:
+            timestamp = time.time() * 1000  # Current timestamp
+            
+            _, celsius, fahrenheit, status = read_water_temperature(timestamp)
+            if celsius is not None:
+                sensor_data["temperature"] = (timestamp, celsius, fahrenheit, status)
+            
+            _, water_level = read_water_sensor(timestamp)
+            if water_level is not None:
+                sensor_data["water_level"] = (timestamp, water_level)
 
-        _, ph, status = read_ph_level(timestamp)
-        if ph is not None:
-            sensor_data["ph"] = (timestamp, ph, status)
+            _, ph, status = read_ph_level(timestamp)
+            if ph is not None:
+                sensor_data["ph"] = (timestamp, ph, status)
 
-        _, turbidity, status = read_turbidity(timestamp)
-        if turbidity is not None:
-            sensor_data["turbidity"] = (timestamp, turbidity, status)
+            _, turbidity, status = read_turbidity(timestamp)
+            if turbidity is not None:
+                sensor_data["turbidity"] = (timestamp, turbidity, status)
 
-        time.sleep(1)  # Adjust sampling rate
+            _, operation, status = read_operation_status(timestamp)
+            if operation is not None:
+                sensor_data["operation"] = (timestamp, operation, status)
+
+            time.sleep(1)  # Adjust sampling rate
+
+def periodic_tasks():
+    with app.app_context():
+        while True:
+            timestamp = time.time() * 1000  # Generate a single timestamp
+            
+            # Save temperature data
+            _, celsius, fahrenheit, status = read_water_temperature(timestamp)
+            if celsius is not None:
+                save_temp_data(timestamp, celsius, fahrenheit, status)
+
+            # Save water level data
+            _, water_level = read_water_sensor(timestamp)
+            if water_level is not None:
+                save_water_level_data(timestamp, water_level)
+
+            # Save pH level data
+            _, ph, status = read_ph_level(timestamp)
+            if ph is not None:
+                save_ph_level_data(timestamp, ph, status)
+
+            # Save turbidity data
+            _, turbidity, status = read_turbidity(timestamp)
+            if turbidity is not None:
+                save_turbidity_data(timestamp, turbidity, status)
+            
+            # Save turbidity data
+            _, operation, status = read_operation_status(timestamp)
+            if operation is not None:
+                save_operation_data(timestamp, operation, status)
+
+            time.sleep(60)  # Sleep for 60 seconds
 
 # Start the background thread for reading sensors
 sensor_thread = threading.Thread(target=read_sensors, daemon=True)
+periodic_thread = threading.Thread(target=periodic_tasks, daemon=True)
+
+# Start the threads
 sensor_thread.start()
+periodic_thread.start()
 
 # Add schedule to SQLite
 @app.route("/add_schedule", methods=["POST"])
@@ -166,6 +212,26 @@ def feeder():
 @app.route("/settings")
 def settings():
     return render_template("settings.html")
+
+@app.route("/get_operation", methods=["GET"])
+def get_operation():
+    time_range = request.args.get("timeRange", "latest")
+
+    if time_range == "latest":
+        data = sensor_data["operation"]
+    elif time_range == "lastHour":
+        data = get_last_hour_operation_data()
+    elif time_range == "lastDay":
+        data = get_last_day_operation_data()
+    else:
+        return jsonify({"error": "Invalid time range"})
+
+    if "data" in locals():
+        return jsonify(data)
+    elif celsius is not None:
+        data = [timestamp, operation, status]
+        return jsonify(data)
+    return jsonify({"error": "Sensor not found"})
 
 @app.route("/get_temperature", methods=["GET"])
 def get_temperature():
@@ -293,90 +359,6 @@ def get_all_data_endpoint():
     if data:
         return jsonify(data)
     return jsonify({"error": "No data found"}), 404
-
-def periodic_tasks():
-    with app.app_context():
-        timestamp = time.time() * 1000  # Generate a single timestamp
-        
-        # Save temperature data
-        _, celsius, fahrenheit, status = read_water_temperature(timestamp)
-        if celsius is not None:
-            save_temp_data(timestamp, celsius, fahrenheit, status)
-
-        # Save water level data
-        _, water_level = read_water_sensor(timestamp)
-        if water_level is not None:
-            save_water_level_data(timestamp, water_level)
-
-        # Save pH level data
-        _, ph, status = read_ph_level(timestamp)
-        if ph is not None:
-            save_ph_level_data(timestamp, ph, status)
-
-        # Save turbidity data
-        _, turbidity, status = read_turbidity(timestamp)
-        if turbidity is not None:
-            save_turbidity_data(timestamp, turbidity, status)
-
-# Add job to the scheduler
-scheduler.add_job(
-    periodic_tasks,
-    'interval',
-    seconds=60,
-    max_instances=1,  # Ensure only one instance is running at a time
-    coalesce=True     # Merge missed executions
-)
-
-def control_water_pumps():
-    with app.app_context():
-        timestamp = time.time() * 1000  # Generate a single timestamp
-
-        # Read sensor values
-        _, celsius, fahrenheit, temp_status = read_water_temperature()
-        _, water_level = read_water_sensor()
-        _, ph, ph_status = read_ph_level()
-
-        # Define thresholds (you can adjust these based on your requirements)
-        ph_threshold = 7.0
-        temp_upper_threshold = 28.0
-        temp_lower_threshold = 22.0
-        water_level_high = 'High'
-        water_level_low = 'Low'
-
-        # Control logic
-        if ph > ph_threshold:
-            pump_water_on()
-            remove_water_on()
-        elif celsius > temp_upper_threshold or celsius < temp_lower_threshold:
-            pump_water_on()
-            remove_water_on()
-        elif water_level == water_level_high:
-            pump_water_off()    #Remove Water till "OK"
-            remove_water_on()
-        elif water_level == water_level_low:
-            pump_water_on()     #Add Water till "OK"
-            remove_water_off()
-        else:
-            pump_water_off()
-            remove_water_off()  # Turn off pumps
-
-# Add job to the scheduler
-scheduler.add_job(
-    control_water_pumps,
-    'interval',
-    seconds=2,
-    max_instances=1,  # Ensure only one instance is running at a time
-    coalesce=True     # Merge missed executions
-)
-
-# Start the scheduler
-scheduler.start()
-
-# Cleanup function to stop the scheduler on exit
-def shutdown_scheduler():
-    scheduler.shutdown(wait=False)
-
-atexit.register(shutdown_scheduler)
 
 if __name__ == "__main__":
     atexit.register(cleanup)  # Register cleanup function
