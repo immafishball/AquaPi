@@ -93,6 +93,21 @@ def read_pump_status(pump_number):
 
     return "On" if pump_status == GPIO.HIGH else "Off"
 
+def read_operation_status(timestamp=None):
+
+    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
+
+    if ph > ph_threshold:
+        return "Replacing Water", "Ongoing"
+    elif celsius > temp_upper_threshold or celsius < temp_lower_threshold:
+        return "Replacing Water", "Ongoing"
+    elif water_level == water_level_high:
+        return "Replacing Water", "Ongoing"
+    elif water_level == water_level_low:
+        return "Replacing Water", "Ongoing"
+    else:
+        return None
+
 def remove_water_on():
     # Turn on water pump
     GPIO.output(WATER_PUMP_PIN_1, GPIO.HIGH) #Pump 2 adds water
