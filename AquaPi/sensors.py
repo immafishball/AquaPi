@@ -94,19 +94,48 @@ def read_pump_status(pump_number):
     return "On" if pump_status == GPIO.HIGH else "Off"
 
 def read_operation_status(timestamp=None):
+    # Read sensor values
+    _, celsius, fahrenheit, temp_status = read_water_temperature()
+    _, water_level = read_water_sensor()
+    _, ph, ph_status = read_ph_level()
+    _, turbidity, status = read_turbidity()
+    #_, operation, status = read_operation_status()
 
-    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
+    # Control logic based on thresholds
+    ph_threshold = 7.0
+    temp_upper_threshold = 28.0
+    temp_lower_threshold = 22.0
+    water_level_high = 'High'
+    water_level_low = 'Low'
 
+    # Logic for controlling pumps
     if ph > ph_threshold:
-        return "Replacing Water", "Ongoing"
+        pump_water_on()
+        remove_water_on()
+        operation = "Replacing Water"
+        status = "Ongoing"
     elif celsius > temp_upper_threshold or celsius < temp_lower_threshold:
-        return "Replacing Water", "Ongoing"
+        pump_water_on()
+        remove_water_on()
+        operation = "Replacing Water"
+        status = "Ongoing"
     elif water_level == water_level_high:
-        return "Replacing Water", "Ongoing"
+        pump_water_off()
+        remove_water_on()
+        operation = "Reducing Water"
+        status = "Ongoing"
     elif water_level == water_level_low:
-        return "Replacing Water", "Ongoing"
+        pump_water_on()
+        remove_water_off()
+        operation = "Adding Water"
+        status = "Ongoing"
     else:
-        return None
+        pump_water_off()
+        remove_water_off()  # Turn off pumps
+        operation = "No Operation"
+        status = "Stable"
+    
+    return timestamp, operation, status
 
 def remove_water_on():
     # Turn on water pump
