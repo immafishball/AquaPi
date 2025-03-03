@@ -18,6 +18,8 @@ $(document).ready(function() {
             { data: 'turbidity', title: 'Turbidity', render: $.fn.dataTable.render.number(',', '.', 3) },
             { data: 'turbidity_status', title: 'Turbidity Status' },
             { data: 'water_level', title: 'Water Level' },
+            { data: 'operation', title: 'Operation' },
+            { data: 'operation_status', title: 'Operation Status' },
             { 
                 data: 'timestamp', 
                 title: 'Timestamp',
@@ -27,10 +29,10 @@ $(document).ready(function() {
                 },
                 type: 'num', // Ensure the column is sorted as numeric
                 // Use the timestamp value (in milliseconds) for sorting
-                render: function(data) {
-                    var date = new Date(data);
-                    return '<span data-order="' + data + '">' + date.toLocaleString() + '</span>';
-                }
+                //render: function(data) {
+                //    var date = new Date(data);
+                //    return '<span data-order="' + data + '">' + date.toLocaleString() + '</span>';
+                //}
             }
         ],
         columnDefs: [
@@ -78,7 +80,9 @@ $(document).ready(function() {
                         temp_status: row[5],
                         turbidity: row[6],
                         turbidity_status: row[7],
-                        water_level: row[8]
+                        water_level: row[8],
+                        operation: row[9],
+                        operation_status: row[10]
                     };
                 });
     
@@ -99,7 +103,9 @@ $(document).ready(function() {
                     temp_status: '',
                     turbidity: '',
                     turbidity_status: '',
-                    water_level: ''
+                    water_level: '',
+                    operation: '',
+                    operation_status: ''
                 }]).draw(false);  // Prevent full redraw to keep pagination
             }
         });
