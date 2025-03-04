@@ -30,15 +30,17 @@ board = get_board()
 
 def feed_now():
     try:
-        print("set all pwm channels duty to 30%")
+        print("Enabling PWM output")
+        board.set_pwm_enable()
+        board.set_pwm_frequency(1000)
+
+        print("Setting PWM duty to 60% (Feeding)")
         board.set_pwm_duty(0, 60)   # Set all pwm channels duty
         time.sleep(5)
 
-        print("set part pwm channels duty to 60%")
-        board.set_pwm_duty(0, 0)   # Set pwm0 channels duty
-        #board.set_pwm_duty(1, 70)  # Set pwm1 channels duty
-        #board.set_pwm_duty(2, 80)  # Set pwm2 channels duty
-        #board.set_pwm_duty(3, 90)  # Set pwm3 channels duty
+        print("Stopping PWM (Feeding done)")
+        board.set_pwm_duty(0, 0)   # Stop PWM by setting duty to 0%
+        board.set_pwm_disable()   # Set pwm0 channels duty
         time.sleep(1)
     except Exception as e:
         raise e
