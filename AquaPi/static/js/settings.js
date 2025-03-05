@@ -117,3 +117,19 @@ $(document).ready(function() {
     // Set interval for periodic updates (every 10 seconds)
     setInterval(fetchData, 10000);
 });
+
+$.ajax({
+    url: '/get_all_data',
+    method: 'GET',
+    dataType: 'json',
+    success: function(response) {
+        console.log("Fetched data:", response); // Debug log
+        if (!Array.isArray(response) || response.length === 0) {
+            console.warn("No data received");
+        }
+        table.clear().rows.add(response).draw(false);
+    },
+    error: function(xhr, status, error) {
+        console.error("AJAX Error:", status, error);
+    }
+});
