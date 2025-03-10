@@ -279,8 +279,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const currentoperationElement = document.getElementById("card-operation");
     const currentoperationStatusElement = document.getElementById("card-operation-status");
-    currentoperationElement.innerHTML = operation;
-    currentoperationStatusElement.innerHTML = status;
+    // Check if the operation is "No Operation", otherwise show "Water Treatment"
+    currentOperationElement.innerHTML = (operation === "No Operation") ? "No Operation" : "Water Treatment";
+    currentOperationStatusElement.innerHTML = status;  // Keep status unchanged
   };
 
   const updateCharts = (temperatureData, pHData, waterLevelData, turbidityData, operationData) => {
