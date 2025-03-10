@@ -5,7 +5,7 @@ $(document).ready(function() {
         responsive: true,
         autoWidth: true,
         responsive: true,
-        order: [[8, 'desc']], // Default sort by timestamp column (index 8) in descending order
+        order: [[10, 'desc']], // Default sort by timestamp column (index 8) in descending order
         buttons: [
             'copy', 'csv', 'excel', 'pdf', 'print'
         ],
