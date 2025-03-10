@@ -3,6 +3,7 @@ from DFRobot_RaspberryPi_Expansion_Board import DFRobot_Expansion_Board_IIC as B
 from DFRobot_PH import DFRobot_PH
 from DFRobot_ADS1115 import ADS1115
 from sensor_manager import get_ads1115
+from sensor_manager import get_board
 
 import RPi.GPIO as GPIO
 import os
@@ -93,7 +94,50 @@ def read_pump_status(pump_number):
 
     return "On" if pump_status == GPIO.HIGH else "Off"
 
+board = get_board()
+
+def up_ph_pump():
+    # Turn on peristaltic pump
+    try:
+        print("Enabling PWM output")
+        board.set_pwm_enable()
+        board.set_pwm_frequency(1000)
+
+        print("Setting PWM duty to 90% (Pumping)")
+        board.set_pwm_duty(1, 90)   # Set pwm channel 1 duty to 90%
+        time.sleep(10)              # 2ML
+
+        print("Stopping PWM (Pumping done)")
+        board.set_pwm_duty(1, 0)   # Set pwm channel 1 duty to 0%
+        board.set_pwm_disable()   # Set pwm0 channels duty
+        time.sleep(1)
+    except Exception as e:
+        raise e
+
+def down_ph_pump():
+    # Turn on peristaltic pump
+    try:
+        print("Enabling PWM output")
+        board.set_pwm_enable()
+        board.set_pwm_frequency(1000)
+
+        print("Setting PWM duty to 90% (Pumping)")
+        board.set_pwm_duty(2, 90)   # Set pwm channel 2 duty to 90%
+        time.sleep(10)              # 2ML
+
+        print("Stopping PWM (Pumping done)")
+        board.set_pwm_duty(2, 0)    # Set pwm channel 2 duty to 0%
+        board.set_pwm_disable()     # Set pwm2 channels duty
+        time.sleep(1)
+    except Exception as e:
+        raise e
+    
 def read_operation_status(timestamp=None):
+    global pump_in_active, pump_out_active  # Use global variables to track pump state
+
+    if timestamp is None:
+        timestamp = time.time() * 1000  # Get the current timestamp
+
     # Read sensor values
     _, celsius, fahrenheit, temp_status = read_water_temperature()
     _, water_level = read_water_sensor()
@@ -101,40 +145,69 @@ def read_operation_status(timestamp=None):
     _, turbidity, status = read_turbidity()
     #_, operation, status = read_operation_status()
 
-    # Control logic based on thresholds
-    ph_threshold = 7.0
-    temp_upper_threshold = 28.0
-    temp_lower_threshold = 22.0
-    water_level_high = 'High'
-    water_level_low = 'Low'
+    # pH threshold range for stability
+    ph_min = 6.8  # Lower bound
+    ph_max = 7.2  # Upper bound
 
-    # Logic for controlling pumps
-    if ph > ph_threshold:
-        pump_water_on()
-        remove_water_on()
-        operation = "Replacing Water"
+    # Initialize operation status
+    operation = "No Operation"
+    status = "Stable"
+
+    operation_performed = False  # Track if any operation is performed
+
+    # Logic for controlling pH pumps
+    if ph < ph_min:  
+        operation = "pH too low, activating pH UP pump"
         status = "Ongoing"
-    elif celsius > temp_upper_threshold or celsius < temp_lower_threshold:
-        pump_water_on()
-        remove_water_on()
-        operation = "Replacing Water"
+        print(f"[{timestamp}] pH too low ({ph}), activating up_pH_pump to increase pH")
+        up_ph_pump()  # Increase pH
+        operation_performed = True
+    elif ph > ph_max:
+        operation = "pH too high, activating pH DOWN pump"
         status = "Ongoing"
-    elif water_level == water_level_high:
-        pump_water_off()
-        remove_water_on()
-        operation = "Reducing Water"
-        status = "Ongoing"
-    elif water_level == water_level_low:
-        pump_water_on()
-        remove_water_off()
-        operation = "Adding Water"
-        status = "Ongoing"
+        print(f"[{timestamp}] pH too high ({ph}), activating down_pH_pump to decrease pH")
+        down_ph_pump()  # Decrease pH
+        operation_performed = True
     else:
-        pump_water_off()
-        remove_water_off()  # Turn off pumps
+        # Initialize operation status
         operation = "No Operation"
         status = "Stable"
-    
+        operation_performed = False
+        print(f"[{timestamp}] pH is stable ({ph}), ensuring pumps are OFF.")
+
+    # Logic for controlling water pumps
+    if water_level == "Low":
+        operation = "Water level low, adding water"
+        status = "Ongoing"
+        if not pump_in_active:  # Only turn on if not already active
+            print(f"[{timestamp}] Water level is LOW. Turning ON pump to ADD water.")
+            GPIO.output(WATER_PUMP_PIN_1, GPIO.HIGH)  # Turn ON water-adding pump
+            pump_in_active = True
+        operation_performed = True
+    elif water_level == "High":
+        operation = "Water level high, removing water"
+        status = "Ongoing"
+        if not pump_out_active:  # Only turn on if not already active
+            print(f"[{timestamp}] Water level is HIGH. Turning ON pump to REMOVE water.")
+            GPIO.output(WATER_PUMP_PIN_2, GPIO.HIGH)  # Turn ON water-removal pump
+            pump_out_active = True
+        operation_performed = True
+    else:
+        print(f"[{timestamp}] Water level is OK. Ensuring pumps are OFF.")
+        if pump_in_active:
+            GPIO.output(WATER_PUMP_PIN_1, GPIO.LOW)  # Turn OFF water-adding pump
+            print(f"[{timestamp}] Turning OFF pump for adding water.")
+            pump_in_active = False
+        if pump_out_active:
+            GPIO.output(WATER_PUMP_PIN_2, GPIO.LOW)  # Turn OFF water-removal pump
+            print(f"[{timestamp}] Turning OFF pump for removing water.")
+            pump_out_active = False
+
+     # If no action was performed, set operation and status to default
+    if not operation_performed:
+        operation = "No Operation"
+        status = "Stable"
+
     return timestamp, operation, status
 
 def remove_water_on():
@@ -182,11 +255,16 @@ def read_ph_level(timestamp=None):
     else:
         previous_pH = current_pH # -> Temporary fix for fluctuations
 
-    if current_pH < 7:
+    if current_pH <= 5:
         status = "Acidic"
-    elif current_pH == 7:
-        status = "Neutral"
-    else:
+    elif 6 <= current_pH <= 8:
+        if current_pH == 7.0:
+            status = "Neutral (Ideal for Freshwater)"
+        elif current_pH == 8.2:
+            status = "Neutral (Ideal for Saltwater)"
+        else:
+            status = "Neutral"
+    else:  # 9-14
         status = "Alkaline"
 
     return timestamp, current_pH, status
