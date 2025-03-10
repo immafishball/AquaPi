@@ -131,9 +131,17 @@ def down_ph_pump():
         time.sleep(1)
     except Exception as e:
         raise e
-    
+
+# Global tracking of ongoing operations
+ongoing_operations = set()  # Stores active operations
+
 def read_operation_status(timestamp=None):
-    global pump_in_active, pump_out_active  # Use global variables to track pump state
+    global pump_in_active, pump_out_active, ongoing_operations  # Track persistent state
+
+    if 'pump_in_active' not in globals():
+        pump_in_active = False 
+    if 'pump_out_active' not in globals():
+        pump_out_active = False
 
     if timestamp is None:
         timestamp = time.time() * 1000  # Get the current timestamp
@@ -142,71 +150,62 @@ def read_operation_status(timestamp=None):
     _, celsius, fahrenheit, temp_status = read_water_temperature()
     _, water_level = read_water_sensor()
     _, ph, ph_status = read_ph_level()
-    _, turbidity, status = read_turbidity()
-    #_, operation, status = read_operation_status()
+    _, turbidity, turbidity_status = read_turbidity()
 
     # pH threshold range for stability
     ph_min = 6.8  # Lower bound
     ph_max = 7.2  # Upper bound
 
-    # Initialize operation status
-    operation = "No Operation"
-    status = "Stable"
-
-    operation_performed = False  # Track if any operation is performed
+    # Create a new list for the current cycle
+    current_operations = set()
 
     # Logic for controlling pH pumps
-    if ph < ph_min:  
-        operation = "pH too low, activating pH UP pump"
-        status = "Ongoing"
-        print(f"[{timestamp}] pH too low ({ph}), activating up_pH_pump to increase pH")
-        up_ph_pump()  # Increase pH
-        operation_performed = True
+    if ph < ph_min:
+        current_operations.add("pH too low, activating pH UP pump")
+        if "pH too low, activating pH UP pump" not in ongoing_operations:
+            print(f"[{timestamp}] pH too low ({ph}), activating up_pH_pump to increase pH")
+            up_ph_pump()  # Increase pH
     elif ph > ph_max:
-        operation = "pH too high, activating pH DOWN pump"
-        status = "Ongoing"
-        print(f"[{timestamp}] pH too high ({ph}), activating down_pH_pump to decrease pH")
-        down_ph_pump()  # Decrease pH
-        operation_performed = True
-    else:
-        # Initialize operation status
-        operation = "No Operation"
-        status = "Stable"
-        operation_performed = False
-        print(f"[{timestamp}] pH is stable ({ph}), ensuring pumps are OFF.")
+        current_operations.add("pH too high, activating pH DOWN pump")
+        if "pH too high, activating pH DOWN pump" not in ongoing_operations:
+            print(f"[{timestamp}] pH too high ({ph}), activating down_pH_pump to decrease pH")
+            down_ph_pump()  # Decrease pH
 
     # Logic for controlling water pumps
     if water_level == "Low":
-        operation = "Water level low, adding water"
-        status = "Ongoing"
-        if not pump_in_active:  # Only turn on if not already active
+        current_operations.add("Water level low, adding water")
+        if not pump_in_active:
             print(f"[{timestamp}] Water level is LOW. Turning ON pump to ADD water.")
             GPIO.output(WATER_PUMP_PIN_1, GPIO.HIGH)  # Turn ON water-adding pump
             pump_in_active = True
-        operation_performed = True
     elif water_level == "High":
-        operation = "Water level high, removing water"
-        status = "Ongoing"
-        if not pump_out_active:  # Only turn on if not already active
+        current_operations.add("Water level high, removing water")
+        if not pump_out_active:
             print(f"[{timestamp}] Water level is HIGH. Turning ON pump to REMOVE water.")
             GPIO.output(WATER_PUMP_PIN_2, GPIO.HIGH)  # Turn ON water-removal pump
             pump_out_active = True
-        operation_performed = True
     else:
-        print(f"[{timestamp}] Water level is OK. Ensuring pumps are OFF.")
         if pump_in_active:
-            GPIO.output(WATER_PUMP_PIN_1, GPIO.LOW)  # Turn OFF water-adding pump
             print(f"[{timestamp}] Turning OFF pump for adding water.")
+            GPIO.output(WATER_PUMP_PIN_1, GPIO.LOW)  # Turn OFF water-adding pump
             pump_in_active = False
         if pump_out_active:
-            GPIO.output(WATER_PUMP_PIN_2, GPIO.LOW)  # Turn OFF water-removal pump
             print(f"[{timestamp}] Turning OFF pump for removing water.")
+            GPIO.output(WATER_PUMP_PIN_2, GPIO.LOW)  # Turn OFF water-removal pump
             pump_out_active = False
 
-     # If no action was performed, set operation and status to default
-    if not operation_performed:
+    # Update the persistent operation state
+    ongoing_operations = current_operations
+
+    # Generate final operation string
+    if ongoing_operations:
+        operation = " | ".join(ongoing_operations)  # Combine all active operations
+        status = "Ongoing"
+    else:
         operation = "No Operation"
         status = "Stable"
+
+    print(f"[{timestamp}] Final operation status: {operation}")
 
     return timestamp, operation, status
 
@@ -236,38 +235,46 @@ previous_pH = None
 
 ph.begin()
 
-def read_ph_level(timestamp=None):
-    global previous_pH
-    #Get the Digital Value of Analog of selected channel
-    adc0 = ads1115.readVoltage(0)
-    #Convert voltage to PH with temperature compensation
-    PH = ph.read_PH(adc0['r'],temperature)
+from collections import deque
 
-    current_pH = PH
+ph_history = deque(maxlen=5)  # Store the last 5 readings for smoothing
+
+def read_ph_level(timestamp=None):
+    global ph_history
+    adc0 = ads1115.readVoltage(0)
+    PH = ph.read_PH(adc0['r'], temperature)
+
     timestamp = time.time() * 1000
 
-    if previous_pH is None:
-        previous_pH = current_pH
+    # If history is empty, initialize it with the current value
+    if not ph_history:
+        ph_history.extend([PH] * ph_history.maxlen)
 
-    # Check if the fluctuation is within ±2 of the previous reading
-    if abs(current_pH - previous_pH) > 2:
-        current_pH = previous_pH # -> Ignore value if there is sudden fluctuation in pH
+    # Compute rolling average of last 5 readings
+    avg_pH = sum(ph_history) / len(ph_history)
+
+    # Only accept values that are within a reasonable range of the rolling average
+    if abs(PH - avg_pH) > 2.5:  # Allow slow changes but ignore extreme spikes
+        print(f"Ignoring extreme spike: {PH}, keeping {avg_pH}")
+        PH = avg_pH  # Use the rolling average instead of the spike
     else:
-        previous_pH = current_pH # -> Temporary fix for fluctuations
+        ph_history.append(PH)  # Update history only if it's a reasonable change
 
-    if current_pH <= 5:
+    # Classify pH status
+    if PH <= 5:
         status = "Acidic"
-    elif 6 <= current_pH <= 8:
-        if current_pH == 7.0:
+    elif 6 <= PH <= 8:
+        if PH == 7.0:
             status = "Neutral (Ideal for Freshwater)"
-        elif current_pH == 8.2:
+        elif PH == 8.2:
             status = "Neutral (Ideal for Saltwater)"
         else:
             status = "Neutral"
-    else:  # 9-14
+    else:
         status = "Alkaline"
 
-    return timestamp, current_pH, status
+    print(f"Filtered pH: {PH} (Rolling Avg: {avg_pH})")
+    return timestamp, PH, status
     
 def calibrate_ph_level():
     temperature = 25
