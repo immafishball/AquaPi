@@ -69,7 +69,7 @@ def get_all_data():
         LEFT JOIN turbidity_log u ON p.timestamp = u.timestamp
         LEFT JOIN water_level_log w ON p.timestamp = w.timestamp
         LEFT JOIN operation_log o ON p.timestamp = o.timestamp
-        ORDER BY p.timestamp DES
+        ORDER BY p.timestamp ASC
     '''
     rows = execute_with_retry(query)
     return [[
