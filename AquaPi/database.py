@@ -24,14 +24,14 @@ def create_tables():
         db.commit()
 
 # Close database connection
-@app.teardown_appcontext
+#@app.teardown_appcontext
 def close_db(e=None):
     db = g.pop('db', None)
     if db is not None:
         db.close()
 
 # Retry wrapper for database operations
-def execute_with_retry(query, params=(), retries=5, delay=0.1, fetch=True):
+def execute_with_retry(query, params=(), retries=10, delay=1, fetch=True):
     db = get_db()
     for _ in range(retries):
         try:
@@ -69,7 +69,7 @@ def get_all_data():
         LEFT JOIN turbidity_log u ON p.timestamp = u.timestamp
         LEFT JOIN water_level_log w ON p.timestamp = w.timestamp
         LEFT JOIN operation_log o ON p.timestamp = o.timestamp
-        ORDER BY p.timestamp ASC
+        ORDER BY p.timestamp DES
     '''
     rows = execute_with_retry(query)
     return [[
