@@ -20,7 +20,7 @@ $(document).ready(function() {
             { data: 'water_level', title: 'Water Level' },
             { data: 'operation', title: 'Operation' },
             { data: 'operation_status', title: 'Operation Status' },
-            { data: 'detected_objects', title: 'Detected Objects' },
+            { data: 'detected_objects', title: 'Detected Fish' },
             { 
                 data: 'timestamp', 
                 title: 'Timestamp',
