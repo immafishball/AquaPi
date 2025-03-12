@@ -5,7 +5,7 @@ $(document).ready(function() {
         responsive: true,
         autoWidth: true,
         responsive: true,
-        order: [[10, 'desc']], // Default sort by timestamp column (index 8) in descending order
+        order: [[11, 'desc']], // Default sort by timestamp column (index 8) in descending order
         buttons: [
             'copy', 'csv', 'excel', 'pdf', 'print'
         ],
@@ -20,6 +20,7 @@ $(document).ready(function() {
             { data: 'water_level', title: 'Water Level' },
             { data: 'operation', title: 'Operation' },
             { data: 'operation_status', title: 'Operation Status' },
+            { data: 'detected_objects', title: 'Detected Objects' },
             { 
                 data: 'timestamp', 
                 title: 'Timestamp',
@@ -82,7 +83,8 @@ $(document).ready(function() {
                         turbidity_status: row[7],
                         water_level: row[8],
                         operation: row[9],
-                        operation_status: row[10]
+                        operation_status: row[10],
+                        detected_objects: row[11] || "None"
                     };
                 });
     
@@ -105,7 +107,8 @@ $(document).ready(function() {
                     turbidity_status: '',
                     water_level: '',
                     operation: '',
-                    operation_status: ''
+                    operation_status: '',
+                    detected_objects: ''
                 }]).draw(false);  // Prevent full redraw to keep pagination
             }
         });
