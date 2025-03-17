@@ -84,7 +84,7 @@ $(document).ready(function() {
                         water_level: row[8],
                         operation: row[9],
                         operation_status: row[10],
-                        detected_objects: row[11] || "None"
+                        detected_objects: row[11] ? row[11] : "None"
                     };
                 });
     
