@@ -56,9 +56,9 @@ def read_water_temperature(timestamp=None):
                 fahrenheit = (celsius * 1.8) + 32
 
                 # Determine the status based on temperature for catfish
-                if (celsius>23 and celsius<27):
+                if 24 <= celsius <= 29:
                     status = "Normal"
-                elif (celsius>21 and celsius<23) or (celsius>27 and celsius<29):
+                elif 22 <= celsius < 24 or 29 < celsius <= 31:
                     status = "Warning"
                 else:
                     status = "Critical"
@@ -142,6 +142,8 @@ def read_operation_status(timestamp=None):
         pump_in_active = False 
     if 'pump_out_active' not in globals():
         pump_out_active = False
+    if 'ongoing_operations' not in globals():
+        ongoing_operations = set()
 
     if timestamp is None:
         timestamp = time.time() * 1000  # Get the current timestamp
@@ -157,29 +159,32 @@ def read_operation_status(timestamp=None):
     ph_max = 7.2  # Upper bound
 
     # Create a new list for the current cycle
-    current_operations = set()
+    new_operations = set(ongoing_operations)  
 
     # Logic for controlling pH pumps
     if ph < ph_min:
-        current_operations.add("pH too low, activating pH UP pump")
-        if "pH too low, activating pH UP pump" not in ongoing_operations:
-            print(f"[{timestamp}] pH too low ({ph}), activating up_pH_pump to increase pH")
-            up_ph_pump()  # Increase pH
+        new_operations.add("pH too low, activating pH UP pump")
+        #if "pH too low, activating pH UP pump" not in ongoing_operations:
+        print(f"[{timestamp}] pH too low ({ph}), activating up_pH_pump to increase pH")
+        up_ph_pump()  # Increase pH
     elif ph > ph_max:
-        current_operations.add("pH too high, activating pH DOWN pump")
-        if "pH too high, activating pH DOWN pump" not in ongoing_operations:
-            print(f"[{timestamp}] pH too high ({ph}), activating down_pH_pump to decrease pH")
-            down_ph_pump()  # Decrease pH
+        new_operations.add("pH too high, activating pH DOWN pump")
+        #if "pH too high, activating pH DOWN pump" not in ongoing_operations:
+        print(f"[{timestamp}] pH too high ({ph}), activating down_pH_pump to decrease pH")
+        down_ph_pump()  # Decrease pH
+    else:
+        new_operations.discard("pH too low, activating pH UP pump")
+        new_operations.discard("pH too high, activating pH DOWN pump")
 
     # Logic for controlling water pumps
     if water_level == "Low":
-        current_operations.add("Water level low, adding water")
+        new_operations.add("Water level low, adding water")
         if not pump_in_active:
             print(f"[{timestamp}] Water level is LOW. Turning ON pump to ADD water.")
             GPIO.output(WATER_PUMP_PIN_1, GPIO.HIGH)  # Turn ON water-adding pump
             pump_in_active = True
     elif water_level == "High":
-        current_operations.add("Water level high, removing water")
+        new_operations.add("Water level high, removing water")
         if not pump_out_active:
             print(f"[{timestamp}] Water level is HIGH. Turning ON pump to REMOVE water.")
             GPIO.output(WATER_PUMP_PIN_2, GPIO.HIGH)  # Turn ON water-removal pump
@@ -193,9 +198,11 @@ def read_operation_status(timestamp=None):
             print(f"[{timestamp}] Turning OFF pump for removing water.")
             GPIO.output(WATER_PUMP_PIN_2, GPIO.LOW)  # Turn OFF water-removal pump
             pump_out_active = False
+        new_operations.discard("Water level low, adding water")
+        new_operations.discard("Water level high, removing water")
 
     # Update the persistent operation state
-    ongoing_operations = current_operations
+    ongoing_operations = new_operations
 
     # Generate final operation string
     if ongoing_operations:
@@ -261,15 +268,10 @@ def read_ph_level(timestamp=None):
         ph_history.append(PH)  # Update history only if it's a reasonable change
 
     # Classify pH status
-    if PH <= 5:
+    if PH < 6.8:
         status = "Acidic"
-    elif 6 <= PH <= 8:
-        if PH == 7.0:
-            status = "Neutral (Ideal for Freshwater)"
-        elif PH == 8.2:
-            status = "Neutral (Ideal for Saltwater)"
-        else:
-            status = "Neutral"
+    elif 6.8 <= PH <= 7.2:
+        status = "Neutral"
     else:
         status = "Alkaline"
 
