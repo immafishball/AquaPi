@@ -8,12 +8,18 @@ current_dir = os.getcwd()
 
 DATABASE = '/home/pi/Projects/AquaPi/sensor_data.db'
 
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE, timeout=10)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
+
 # Get database connection (optimized for Flask)
 def get_db():
     if 'db' not in g:
-        g.db = sqlite3.connect(DATABASE, timeout=10)  # Add timeout for lock issues
+        g.db = sqlite3.connect(DATABASE, timeout=10, check_same_thread=False)  # Allow multi-threading
         g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA journal_mode=WAL")  # Enable WAL for better concurrency
+        g.db.execute("PRAGMA journal_mode=WAL")  # Enable WAL mode for concurrency
     return g.db
 
 def create_tables():
@@ -30,8 +36,28 @@ def close_db(e=None):
     if db is not None:
         db.close()
 
-# Retry wrapper for database operations
 def execute_with_retry(query, params=(), retries=10, delay=1, fetch=True):
+    for _ in range(retries):
+        try:
+            conn = get_db_connection()
+            cursor = conn.execute(query, params)
+            if fetch:
+                results = cursor.fetchall()
+                cursor.close()
+                conn.close()
+                return results
+            conn.commit()
+            conn.close()
+            return None
+        except sqlite3.OperationalError as e:
+            if "database is locked" in str(e):
+                time.sleep(delay)
+            else:
+                raise e
+    return [] if fetch else None
+
+# Retry wrapper for database operations
+def execute_with_retry_old(query, params=(), retries=10, delay=1, fetch=True):
     db = get_db()
     for _ in range(retries):
         try:
@@ -63,20 +89,28 @@ def get_all_data():
             u.status AS turbidity_status, 
             w.water_level AS water_level,
             o.operation AS operation,
-            o.status AS operation_status
+            o.status AS operation_status,
+            COALESCE(
+                (SELECT object_name || ' (' || confidence || '%)' 
+                FROM detected_objects_log d
+                WHERE d.timestamp = p.timestamp
+                ORDER BY confidence DESC
+                LIMIT 1),
+                'None'
+            ) AS detected_objects
         FROM ph_level_log p
         LEFT JOIN temperature_log t ON p.timestamp = t.timestamp
         LEFT JOIN turbidity_log u ON p.timestamp = u.timestamp
         LEFT JOIN water_level_log w ON p.timestamp = w.timestamp
         LEFT JOIN operation_log o ON p.timestamp = o.timestamp
-        ORDER BY p.timestamp ASC
+        ORDER BY p.timestamp ASC;
     '''
     rows = execute_with_retry(query)
     return [[
         row["timestamp"], row["ph"], row["ph_status"],
         row["temp_celsius"], row["temp_fahrenheit"], row["temp_status"],
         row["turbidity"], row["turbidity_status"], row["water_level"],
-        row["operation"], row["operation_status"]
+        row["operation"], row["operation_status"], row["detected_objects"]
     ] for row in rows] if rows else []
 
 # Save operation log
@@ -209,3 +243,8 @@ def get_last_day_turbidity_data():
     '''
     rows = execute_with_retry(query, (one_day_ago,))
     return [[row["avg_timestamp"], row["avg_turbidity"], row["status"]] for row in rows] if rows else []
+
+def save_detected_objects(timestamp, detected_objects):
+    query = "INSERT INTO detected_objects_log (timestamp, object_name, confidence) VALUES (?, ?, ?)"
+    for obj in detected_objects:
+        execute_with_retry(query, (timestamp, obj['name'], obj['confidence']), fetch=False)
