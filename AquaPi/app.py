@@ -32,6 +32,7 @@ from database import (
     save_ph_level_data,
     save_turbidity_data,
     save_operation_data,
+    save_detected_objects,
     get_last_hour_temperature_data,
     get_last_day_temperature_data,
     get_last_hour_water_level_data,
@@ -50,15 +51,14 @@ import sqlite3
 import os
 import atexit
 import threading
-
-from apscheduler.schedulers.background import BackgroundScheduler
+import logging
 
 # Initialize Flask app
 app = Flask(__name__)
+log = logging.getLogger('werkzeug')
+log.disabled = True
+app.logger.disabled = True
 CORS(app)
-
-# Initialize APScheduler
-scheduler = BackgroundScheduler()
 
 # import camera driver
 if os.environ.get("CAMERA"):
@@ -75,32 +75,51 @@ sensor_data = {
     "ph": None,
     "turbidity": None,
     "operation": None,
+    "detected_objects": None,
 }
 
 def read_sensors():
     with app.app_context():
         while True:
-            timestamp = time.time() * 1000  # Current timestamp
-            
+            timestamp = time.time() * 1000  # Generate a single timestamp
+
             _, celsius, fahrenheit, status = read_water_temperature(timestamp)
             if celsius is not None:
                 sensor_data["temperature"] = (timestamp, celsius, fahrenheit, status)
-            
+                print(f"[DEBUG] Updated temperature: {sensor_data['temperature']}")
+
             _, water_level = read_water_sensor(timestamp)
             if water_level is not None:
                 sensor_data["water_level"] = (timestamp, water_level)
+                print(f"[DEBUG] Updated water level: {sensor_data['water_level']}")
 
             _, ph, status = read_ph_level(timestamp)
             if ph is not None:
                 sensor_data["ph"] = (timestamp, ph, status)
+                print(f"[DEBUG] Updated pH: {sensor_data['ph']}")
 
             _, turbidity, status = read_turbidity(timestamp)
             if turbidity is not None:
                 sensor_data["turbidity"] = (timestamp, turbidity, status)
+                print(f"[DEBUG] Updated turbidity: {sensor_data['turbidity']}")
 
             _, operation, status = read_operation_status(timestamp)
             if operation is not None:
                 sensor_data["operation"] = (timestamp, operation, status)
+                print(f"[DEBUG] Updated operation: {sensor_data['operation']}")
+
+            # Use the same timestamp for detected objects if new data is found
+            if Camera.detected_objects is not None:
+                sensor_data["detected_objects"] = (timestamp, Camera.detected_objects)
+                print(f"[DEBUG] Updated detected objects: {sensor_data['detected_objects']}")
+                Camera.detected_objects = []  # Clear after storing
+            elif sensor_data["detected_objects"]:
+                # Reuse the last timestamp for detected objects
+                sensor_data["detected_objects"] = (
+                    sensor_data["detected_objects"][0],  # Keep the old timestamp
+                    sensor_data["detected_objects"][1]   # Keep the old object list
+                )
+                print("[DEBUG] No new detections, reusing previous detected objects.")
 
             time.sleep(1)  # Adjust sampling rate
 
@@ -108,37 +127,72 @@ def periodic_tasks():
     with app.app_context():
         while True:
             timestamp = time.time() * 1000  # Generate a single timestamp
-            
-            # Save temperature data
-            _, celsius, fahrenheit, status = read_water_temperature(timestamp)
-            if celsius is not None:
-                save_temp_data(timestamp, celsius, fahrenheit, status)
+            print(f"[DEBUG] Running periodic_tasks at {timestamp}")  # Debug log
 
-            # Save water level data
-            _, water_level = read_water_sensor(timestamp)
-            if water_level is not None:
-                save_water_level_data(timestamp, water_level)
+            try:
+                # Use sensor_data instead of calling functions again
+                if sensor_data["temperature"] is not None:
+                    ts, celsius, fahrenheit, status = sensor_data["temperature"]
+                    save_temp_data(timestamp, celsius, fahrenheit, status)
+                    print(f"[DEBUG] Temp Data Saved: {sensor_data['temperature']}")
 
-            # Save pH level data
-            _, ph, status = read_ph_level(timestamp)
-            if ph is not None:
-                save_ph_level_data(timestamp, ph, status)
+                if sensor_data["water_level"] is not None:
+                    ts, water_level = sensor_data["water_level"]
+                    save_water_level_data(timestamp, water_level)
+                    print(f"[DEBUG] Water Level Data Saved: {sensor_data['water_level']}")
 
-            # Save turbidity data
-            _, turbidity, status = read_turbidity(timestamp)
-            if turbidity is not None:
-                save_turbidity_data(timestamp, turbidity, status)
-            
-            # Save turbidity data
-            _, operation, status = read_operation_status(timestamp)
-            if operation is not None:
-                save_operation_data(timestamp, operation, status)
+                if sensor_data["ph"] is not None:
+                    ts, ph, status = sensor_data["ph"]
+                    save_ph_level_data(timestamp, ph, status)
+                    print(f"[DEBUG] pH Data Saved: {sensor_data['ph']}")
+
+                if sensor_data["turbidity"] is not None:
+                    ts, turbidity, status = sensor_data["turbidity"]
+                    save_turbidity_data(timestamp, turbidity, status)
+                    print(f"[DEBUG] Turbidity Data Saved: {sensor_data['turbidity']}")
+                
+                if sensor_data["operation"] is not None:
+                    ts, operation, status = sensor_data["operation"]
+                    save_operation_data(timestamp, operation, status)
+                    print(f"[DEBUG] Operation Data Saved: {sensor_data['operation']}")
+
+                if sensor_data["detected_objects"] is not None:
+                    ts, detected_objects = sensor_data["detected_objects"]
+                    save_detected_objects(timestamp, detected_objects)
+                    print(f"[DEBUG] Detected Objects Saved: {sensor_data['detected_objects']}")
+
+            except Exception as e:
+                print(f"[ERROR] Database error: {e}")
+
+            finally:
+                close_db()  # Ensure the database connection is closed
 
             time.sleep(60)  # Sleep for 60 seconds
 
+def start_periodic_tasks():
+    while True:
+        try:
+            print("[DEBUG] Starting periodic_tasks() thread")
+            periodic_tasks()
+        except Exception as e:
+            print(f"[ERROR] periodic_tasks crashed: {e}")
+            time.sleep(5)
+
+def start_read_sensors():
+    while True:
+        try:
+            print("[DEBUG] Starting read_sensors() thread")
+            read_sensors()
+        except Exception as e:
+            print(f"[ERROR] read_sensors crashed: {e}")
+            time.sleep(5)
+
+# Add debug logs before starting threads
+print("[DEBUG] Starting sensor and periodic tasks threads...")
+
 # Start the background thread for reading sensors
-sensor_thread = threading.Thread(target=read_sensors, daemon=True)
-periodic_thread = threading.Thread(target=periodic_tasks, daemon=True)
+sensor_thread = threading.Thread(target=start_read_sensors, daemon=True)
+periodic_thread = threading.Thread(target=start_periodic_tasks, daemon=True)
 
 # Start the threads
 sensor_thread.start()
