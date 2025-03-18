@@ -48,6 +48,9 @@ $(document).ready(function() {
         serverSide: false, // Set to false since we're using client-side data
     });
 
+    // Save the current page index
+    var currentPage = table.page();
+
     // Add DataTable buttons manually
     new $.fn.dataTable.Buttons(table, {
         buttons: [
@@ -61,9 +64,16 @@ $(document).ready(function() {
 
     // Function to fetch data and update the DataTable
     function fetchData() {
-        // Save the current page index
-        var currentPage = table.page();
-    
+        if (table.data().count() === 0) {
+            $("#dataTable tbody").html(`
+                <tr>
+                    <td colspan="11" class="text-center" style="text-align: center; font-weight: bold; padding: 20px;">
+                        Fetching data...
+                    </td>
+                </tr>
+            `);
+        }
+
         $.ajax({
             url: '/get_all_data',
             method: 'GET',
@@ -86,6 +96,9 @@ $(document).ready(function() {
                     };
                 });
     
+                // Store the current page index
+                var currentPage = table.page();
+                
                 // Clear existing data, add new data, and redraw the table
                 table.clear().rows.add(data).draw(false);  // Pass `false` to prevent full redraw
     
@@ -116,20 +129,4 @@ $(document).ready(function() {
 
     // Set interval for periodic updates (every 10 seconds)
     setInterval(fetchData, 10000);
-});
-
-$.ajax({
-    url: '/get_all_data',
-    method: 'GET',
-    dataType: 'json',
-    success: function(response) {
-        console.log("Fetched data:", response); // Debug log
-        if (!Array.isArray(response) || response.length === 0) {
-            console.warn("No data received");
-        }
-        table.clear().rows.add(response).draw(false);
-    },
-    error: function(xhr, status, error) {
-        console.error("AJAX Error:", status, error);
-    }
 });
