@@ -28,7 +28,28 @@ document.addEventListener("DOMContentLoaded", () => {
       maintainAspectRatio: false,
       layout: { padding: 10 },
       responsive: true,
-      legend: { position: "bottom" },
+      legend: {
+        position: "bottom",
+        onClick: function (e, legendItem) {
+          const index = legendItem.datasetIndex;
+          const ci = this.chart;
+          const datasetMeta = ci.getDatasetMeta(index);
+          const otherIndex = index === 0 ? 1 : 0;
+          const otherMeta = ci.getDatasetMeta(otherIndex);
+  
+          if (datasetMeta.hidden === null || datasetMeta.hidden === false) {
+            // Prevent disabling the last active dataset
+            if (otherMeta.hidden === true) return;
+            datasetMeta.hidden = true;
+          } else {
+            // Enable this dataset and disable the other
+            datasetMeta.hidden = false;
+            otherMeta.hidden = true;
+          }
+  
+          ci.update();
+        },
+      },
       title: { display: true, text: "Temperature Readings" },
       scales: {
         x: { type: "linear", position: "bottom" },
@@ -36,6 +57,10 @@ document.addEventListener("DOMContentLoaded", () => {
       },
     },
   });
+  
+  // Ensure °F is hidden by default
+  temperatureChart.getDatasetMeta(1).hidden = true;
+  temperatureChart.update();
 
   const pHChart = new Chart(pHctx, {
     type: "line",
@@ -335,4 +360,80 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     startInterval(temperatureEndpoint, pHEndpoint, waterLevelEndpoint, turbidityEndpoint, operationEndpoint)
   });
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  const notificationButton = document.querySelector(".icon-button"); // Fix: Use querySelector for classes
+  const notificationDropdown = document.querySelector(".notification-dropdown"); // Fix: Use querySelector
+  const notificationCount = document.getElementById("notificationCount"); // Assuming this is an ID
+  const notificationList = document.getElementById("notificationList"); // Assuming this is an ID
+
+  // Dummy notifications for fallback
+  const dummyNotifications = [
+    { id: 1, message: "New pH alert detected!" },
+    { id: 2, message: "Water level is low." },
+  ];
+
+  // Fetch notification count from API
+  const fetchNotificationCount = async () => {
+    try {
+      const response = await fetch("/get_notification_count");
+      const data = await response.json();
+      notificationCount.textContent = data.count || 0; // Update badge count
+    } catch (error) {
+      console.error("Error fetching notification count:", error);
+      notificationCount.textContent = dummyNotifications.length; // Fallback count
+    }
+  };
+
+  // Fetch notification list from API
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetch("/get_notification_list");
+      const data = await response.json();
+      renderNotifications(data.notifications);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      renderNotifications(dummyNotifications); // Fallback to dummy notifications
+    }
+  };
+
+  // Render notifications in the dropdown
+  const renderNotifications = (notifications) => {
+    notificationList.innerHTML = ""; // Clear existing content
+
+    if (!notifications || notifications.length === 0) {
+      notificationList.innerHTML = "<li>No new notifications</li>";
+      return;
+    }
+
+    notifications.forEach((notif) => {
+      const li = document.createElement("li");
+      li.textContent = notif.message;
+      li.addEventListener("click", () => alert(`Clicked: ${notif.message}`)); // Example click event
+      notificationList.appendChild(li);
+    });
+
+    console.log("Rendered Notifications:", notifications); // Debugging
+  };
+
+  // Toggle notification dropdown visibility
+  notificationButton.addEventListener("click", (event) => {
+    event.stopPropagation(); // Prevents unwanted closing when clicking the button
+    notificationDropdown.classList.toggle("hidden");
+
+    if (!notificationDropdown.classList.contains("hidden")) {
+      fetchNotifications(); // Fetch notifications when opening
+    }
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener("click", (event) => {
+    if (!notificationDropdown.contains(event.target) && !notificationButton.contains(event.target)) {
+      notificationDropdown.classList.add("hidden");
+    }
+  });
+
+  // Initial fetch for notification count
+  fetchNotificationCount();
 });
