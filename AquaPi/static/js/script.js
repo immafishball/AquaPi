@@ -363,38 +363,48 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  const notificationButton = document.querySelector(".icon-button"); // Fix: Use querySelector for classes
-  const notificationDropdown = document.querySelector(".notification-dropdown"); // Fix: Use querySelector
-  const notificationCount = document.getElementById("notificationCount"); // Assuming this is an ID
-  const notificationList = document.getElementById("notificationList"); // Assuming this is an ID
+  const notificationButton = document.querySelector(".icon-button");
+  const notificationDropdown = document.querySelector(".notification-dropdown");
+  const notificationCount = document.getElementById("notificationCount");
+  const notificationList = document.getElementById("notificationList");
 
-  // Dummy notifications for fallback
-  const dummyNotifications = [
-    { id: 1, message: "New pH alert detected!" },
-    { id: 2, message: "Water level is low." },
-  ];
+  let lastNotifications = []; // Store the last notifications to avoid unnecessary updates
 
-  // Fetch notification count from API
-  const fetchNotificationCount = async () => {
-    try {
-      const response = await fetch("/get_notification_count");
-      const data = await response.json();
-      notificationCount.textContent = data.count || 0; // Update badge count
-    } catch (error) {
-      console.error("Error fetching notification count:", error);
-      notificationCount.textContent = dummyNotifications.length; // Fallback count
-    }
-  };
-
-  // Fetch notification list from API
+  // Fetch status log notifications
   const fetchNotifications = async () => {
     try {
-      const response = await fetch("/get_notification_list");
+      const response = await fetch("/get_combined_status");
       const data = await response.json();
-      renderNotifications(data.notifications);
+
+      // Check if we got a valid response
+      if (!data || !data.water_level || !data.ph_level) {
+        notificationCount.textContent = 0;
+        notificationCount.style.display = "none";
+        renderNotifications([]); // Ensure it shows "No new notifications"
+        return;
+      }
+
+      // Combine ph_level and water_level data into a single list
+      const combinedNotifications = [
+        ...data.water_level.map(([time, status]) => ({ time, status, category: "Water Level" })),
+        ...data.ph_level.map(([time, status]) => ({ time, status, category: "pH Level" }))
+      ];
+
+      // Sort notifications by time (most recent first)
+      combinedNotifications.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+      // Check if new notifications arrived before updating UI
+      if (JSON.stringify(combinedNotifications) !== JSON.stringify(lastNotifications)) {
+        lastNotifications = combinedNotifications;
+        renderNotifications(combinedNotifications);
+      }
+
+      // Update the notification count
+      notificationCount.textContent = combinedNotifications.length;
+      notificationCount.style.display = combinedNotifications.length > 0 ? "inline-block" : "none";
     } catch (error) {
       console.error("Error fetching notifications:", error);
-      renderNotifications(dummyNotifications); // Fallback to dummy notifications
+      renderNotifications([]); // Prevents UI freeze in case of API error
     }
   };
 
@@ -407,23 +417,28 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    notifications.forEach((notif) => {
+    notifications.forEach(({ time, status, category }) => {
       const li = document.createElement("li");
-      li.textContent = notif.message;
-      li.addEventListener("click", () => alert(`Clicked: ${notif.message}`)); // Example click event
+
+      // Format the time to show only hours and minutes (e.g., "10:48 PM")
+      const date = new Date(time);
+      const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // Remove "Alkaline" and "Acidic" from the status
+      const cleanedStatus = status.replace(/(Alkaline|Acidic)\s*\|\s*/g, "");
+
+      li.textContent = `[${timeString}] ${category}: ${cleanedStatus}`;
       notificationList.appendChild(li);
     });
-
-    console.log("Rendered Notifications:", notifications); // Debugging
   };
 
-  // Toggle notification dropdown visibility
+  // Toggle notification dropdown
   notificationButton.addEventListener("click", (event) => {
-    event.stopPropagation(); // Prevents unwanted closing when clicking the button
+    event.stopPropagation();
     notificationDropdown.classList.toggle("hidden");
 
     if (!notificationDropdown.classList.contains("hidden")) {
-      fetchNotifications(); // Fetch notifications when opening
+      fetchNotifications();
     }
   });
 
@@ -434,6 +449,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Initial fetch for notification count
-  fetchNotificationCount();
+  // Poll the server every 10 seconds for new notifications
+  setInterval(fetchNotifications, 10000);
+
+  // Initial fetch
+  fetchNotifications();
 });
