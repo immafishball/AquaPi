@@ -79,66 +79,41 @@ def execute_with_retry_old(query, params=(), retries=10, delay=1, fetch=True):
 # Fetch all data
 def get_all_data():
     query = '''
+        WITH RankedObjects AS (
         SELECT 
-            p.timestamp AS timestamp, 
-            p.ph AS ph, 
-            p.status AS ph_status, 
-            t.celsius AS temp_celsius, 
-            t.fahrenheit AS temp_fahrenheit, 
-            t.status AS temp_status, 
-            u.turbidity AS turbidity, 
-            u.status AS turbidity_status, 
-            w.water_level AS water_level,
-            o.operation AS operation,
-            o.status AS operation_status,
-            COALESCE(
-                (SELECT object_name || ' (' || confidence || '%)' 
-                FROM detected_objects_log d
-                WHERE d.timestamp = p.timestamp
-                ORDER BY confidence DESC
-                LIMIT 1),
-                'None'
-            ) AS detected_objects
+            d.timestamp,
+            d.object_name || ' (' || d.confidence || '%)' AS detected_objects,
+            ROW_NUMBER() OVER (PARTITION BY d.timestamp ORDER BY d.confidence DESC) AS rank
+        FROM detected_objects_log d
+        )
+        SELECT 
+        p.timestamp AS timestamp, 
+        p.ph AS ph, 
+        p.status AS ph_status, 
+        t.celsius AS temp_celsius, 
+        t.fahrenheit AS temp_fahrenheit, 
+        t.status AS temp_status, 
+        u.turbidity AS turbidity, 
+        u.status AS turbidity_status, 
+        w.water_level AS water_level,
+        w.status AS water_level_status,
+        COALESCE(ro.detected_objects, 'None') AS detected_objects
         FROM ph_level_log p
         LEFT JOIN temperature_log t ON p.timestamp = t.timestamp
         LEFT JOIN turbidity_log u ON p.timestamp = u.timestamp
         LEFT JOIN water_level_log w ON p.timestamp = w.timestamp
-        LEFT JOIN operation_log o ON p.timestamp = o.timestamp
+        LEFT JOIN RankedObjects ro ON p.timestamp = ro.timestamp AND ro.rank = 1
         ORDER BY p.timestamp ASC;
     '''
     rows = execute_with_retry(query)
     return [[
-        row["timestamp"], row["ph"], row["ph_status"],
+        row["timestamp"], 
+        row["ph"], row["ph_status"],
         row["temp_celsius"], row["temp_fahrenheit"], row["temp_status"],
-        row["turbidity"], row["turbidity_status"], row["water_level"],
-        row["operation"], row["operation_status"], row["detected_objects"]
+        row["turbidity"], row["turbidity_status"], 
+        row["water_level"], row["water_level_status"],
+        row["detected_objects"]
     ] for row in rows] if rows else []
-
-# Save operation log
-def save_operation_data(timestamp, operation, status):
-    query = "INSERT INTO operation_log (timestamp, operation, status) VALUES (?, ?, ?)"
-    execute_with_retry(query, (timestamp, operation, status), fetch=False)
-
-# Fetch last hour of operation data
-def get_last_hour_operation_data():
-    one_hour_ago = int(time.time() * 1000 - 3600 * 1000)
-    query = "SELECT timestamp, operation, status FROM operation_log WHERE timestamp >= ? ORDER BY timestamp ASC"
-    rows = execute_with_retry(query, (one_hour_ago,))
-    return [[row["timestamp"], row["operation"], row["status"]] for row in rows] if rows else []
-
-# Fetch last day of operation data
-def get_last_day_operation_data():
-    one_day_ago = int(time.time() * 1000 - 24 * 3600 * 1000)
-    query = '''
-        SELECT strftime("%Y-%m-%d %H:00:00", datetime(timestamp/1000, "unixepoch", "localtime")) as avg_timestamp,
-               operation, MAX(status) as status
-        FROM operation_log
-        WHERE timestamp >= ?
-        GROUP BY avg_timestamp, operation
-        ORDER BY avg_timestamp ASC
-    '''
-    rows = execute_with_retry(query, (one_day_ago,))
-    return [[row["avg_timestamp"], row["operation"], row["status"]] for row in rows] if rows else []
 
 # Save temperature data
 def save_temp_data(timestamp, celsius, fahrenheit, status):
@@ -168,22 +143,22 @@ def get_last_day_temperature_data():
     return [[row["avg_timestamp"], row["avg_celsius"], row["avg_fahrenheit"], row["status"]] for row in rows] if rows else []
 
 # Save water level data
-def save_water_level_data(timestamp, water_level):
-    query = "INSERT INTO water_level_log (timestamp, water_level) VALUES (?, ?)"
-    execute_with_retry(query, (timestamp, water_level), fetch=False)
+def save_water_level_data(timestamp, water_level, status):
+    query = "INSERT INTO water_level_log (timestamp, water_level, status) VALUES (?, ?, ?)"
+    execute_with_retry(query, (timestamp, water_level, status), fetch=False)
 
 # Fetch last hour of water level data
 def get_last_hour_water_level_data():
     one_hour_ago = int(time.time() * 1000 - 3600 * 1000)
-    query = "SELECT timestamp, water_level FROM water_level_log WHERE timestamp >= ? ORDER BY timestamp ASC"
+    query = "SELECT timestamp, water_level, status FROM water_level_log WHERE timestamp >= ? ORDER BY timestamp ASC"
     rows = execute_with_retry(query, (one_hour_ago,))
-    return [[row["timestamp"], row["water_level"]] for row in rows] if rows else []
+    return [[row["timestamp"], row["water_level"], row["status"]] for row in rows] if rows else []
 
 # Fetch last day of water level data
 def get_last_day_water_level_data():
     one_day_ago = int(time.time() * 1000 - 24 * 3600 * 1000)
     query = '''
-        SELECT AVG(water_level) as avg_water_level, 
+        SELECT AVG(water_level) as avg_water_level, MAX(status) as status,
                strftime("%Y-%m-%d %H:00:00", datetime(timestamp/1000, "unixepoch", "localtime")) as avg_timestamp
         FROM water_level_log 
         WHERE timestamp >= ? 
@@ -191,7 +166,7 @@ def get_last_day_water_level_data():
         ORDER BY avg_timestamp ASC
     '''
     rows = execute_with_retry(query, (one_day_ago,))
-    return [[row["avg_timestamp"], row["avg_water_level"]] for row in rows] if rows else []
+    return [[row["avg_timestamp"], row["avg_water_level"], row["status"]] for row in rows] if rows else []
 
 # Save pH level data
 def save_ph_level_data(timestamp, ph, status):
@@ -256,3 +231,45 @@ def save_detected_objects(timestamp, detected_objects):
             confidence = random.randint(85, 95)  # Assign a random value between 85-95%
         
         execute_with_retry(query, (timestamp, obj['name'], confidence), fetch=False)
+        
+# Fetch water level status for the current day with specific statuses
+def get_water_level_status_for_day():
+    query = '''
+        SELECT 
+        datetime(timestamp / 1000, 'unixepoch') AS day,  -- Convert Unix timestamp (milliseconds) to a readable date
+        timestamp, 
+        water_level, 
+        status
+        FROM water_level_log
+        WHERE status IN ('Removing Water', 'Adding Water')
+        AND DATE(datetime(timestamp / 1000, 'unixepoch')) = CURRENT_DATE   -- Filter by specific date
+        ORDER BY timestamp DESC  -- Sort in descending order to get the most recent data
+        LIMIT 5;  -- Limit to the 5 most recent rows
+    '''
+    
+    # Execute the query and return the results
+    rows = execute_with_retry(query)
+    
+    # Return the fetched data
+    return [[row["day"], row["timestamp"], row["water_level"], row["status"]] for row in rows] if rows else []
+
+# Fetch ph level status for the current day with specific statuses
+def get_ph_level_status_for_day():
+    query = '''
+        SELECT 
+        datetime(timestamp / 1000, 'unixepoch') AS day,  -- Convert Unix timestamp (milliseconds) to a readable date
+        timestamp, 
+        ph, 
+        status
+        FROM ph_level_log
+        WHERE status IN ('Acidic | Adding pH UP', 'Alkaline | Adding pH Down')
+        AND DATE(datetime(timestamp / 1000, 'unixepoch')) = CURRENT_DATE   -- Filter by specific date
+        ORDER BY timestamp DESC  -- Sort in descending order to get the most recent data
+        LIMIT 5;  -- Limit to the 5 most recent rows
+    '''
+    
+    # Execute the query and return the results
+    rows = execute_with_retry(query)
+    
+    # Return the fetched data
+    return [[row["day"], row["timestamp"], row["ph"], row["status"]] for row in rows] if rows else []
