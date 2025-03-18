@@ -13,7 +13,6 @@ from sensors import (
     read_water_temperature,
     read_water_sensor,
     read_turbidity,
-    read_operation_status,
     pump_water_on,
     pump_water_off,
     remove_water_off,
@@ -27,11 +26,12 @@ from database import (
     get_db,
     create_tables,
     close_db,
+    get_water_level_status_for_day,
+    get_ph_level_status_for_day,
     save_temp_data,
     save_water_level_data,
     save_ph_level_data,
     save_turbidity_data,
-    save_operation_data,
     save_detected_objects,
     get_last_hour_temperature_data,
     get_last_day_temperature_data,
@@ -41,8 +41,6 @@ from database import (
     get_last_day_ph_level_data,
     get_last_hour_turbidity_data,
     get_last_day_turbidity_data,
-    get_last_hour_operation_data,
-    get_last_day_operation_data,
     get_all_data
 )
 
@@ -74,23 +72,22 @@ sensor_data = {
     "water_level": None,
     "ph": None,
     "turbidity": None,
-    "operation": None,
     "detected_objects": None,
 }
 
 def read_sensors():
     with app.app_context():
         while True:
-            timestamp = time.time() * 1000  # Generate a single timestamp
+            timestamp = int(time.time() * 1000)  # Generate a single timestamp
 
             _, celsius, fahrenheit, status = read_water_temperature(timestamp)
             if celsius is not None:
                 sensor_data["temperature"] = (timestamp, celsius, fahrenheit, status)
                 print(f"[DEBUG] Updated temperature: {sensor_data['temperature']}")
 
-            _, water_level = read_water_sensor(timestamp)
+            _, water_level, status = read_water_sensor(timestamp)
             if water_level is not None:
-                sensor_data["water_level"] = (timestamp, water_level)
+                sensor_data["water_level"] = (timestamp, water_level, status)
                 print(f"[DEBUG] Updated water level: {sensor_data['water_level']}")
 
             _, ph, status = read_ph_level(timestamp)
@@ -102,11 +99,6 @@ def read_sensors():
             if turbidity is not None:
                 sensor_data["turbidity"] = (timestamp, turbidity, status)
                 print(f"[DEBUG] Updated turbidity: {sensor_data['turbidity']}")
-
-            _, operation, status = read_operation_status(timestamp)
-            if operation is not None:
-                sensor_data["operation"] = (timestamp, operation, status)
-                print(f"[DEBUG] Updated operation: {sensor_data['operation']}")
 
             # If new detected objects are found, update them
             if Camera.detected_objects:
@@ -122,7 +114,7 @@ def read_sensors():
 def periodic_tasks():
     with app.app_context():
         while True:
-            timestamp = time.time() * 1000  # Generate a single timestamp
+            timestamp = int(time.time() * 1000)  # Ensures timestamp is a whole number
             print(f"[DEBUG] Running periodic_tasks at {timestamp}")  # Debug log
 
             try:
@@ -134,7 +126,7 @@ def periodic_tasks():
 
                 if sensor_data["water_level"] is not None:
                     ts, water_level = sensor_data["water_level"]
-                    save_water_level_data(timestamp, water_level)
+                    save_water_level_data(timestamp, water_level, status)
                     print(f"[DEBUG] Water Level Data Saved: {sensor_data['water_level']}")
 
                 if sensor_data["ph"] is not None:
@@ -146,11 +138,6 @@ def periodic_tasks():
                     ts, turbidity, status = sensor_data["turbidity"]
                     save_turbidity_data(timestamp, turbidity, status)
                     print(f"[DEBUG] Turbidity Data Saved: {sensor_data['turbidity']}")
-                
-                if sensor_data["operation"] is not None:
-                    ts, operation, status = sensor_data["operation"]
-                    save_operation_data(timestamp, operation, status)
-                    print(f"[DEBUG] Operation Data Saved: {sensor_data['operation']}")
 
                 if sensor_data["detected_objects"] is not None:
                     ts, detected_objects = sensor_data["detected_objects"]
@@ -263,26 +250,6 @@ def feeder():
 def settings():
     return render_template("settings.html")
 
-@app.route("/get_operation", methods=["GET"])
-def get_operation():
-    time_range = request.args.get("timeRange", "latest")
-
-    if time_range == "latest":
-        data = sensor_data["operation"]
-    elif time_range == "lastHour":
-        data = get_last_hour_operation_data()
-    elif time_range == "lastDay":
-        data = get_last_day_operation_data()
-    else:
-        return jsonify({"error": "Invalid time range"})
-
-    if "data" in locals():
-        return jsonify(data)
-    elif celsius is not None:
-        data = [timestamp, operation, status]
-        return jsonify(data)
-    return jsonify({"error": "Sensor not found"})
-
 @app.route("/get_temperature", methods=["GET"])
 def get_temperature():
     time_range = request.args.get("timeRange", "latest")
@@ -319,7 +286,7 @@ def get_water_level():
     if "data" in locals():
         return jsonify(data)
     elif water_level is not None:
-        data = [timestamp, water_level]
+        data = [timestamp, water_level, status]
         return jsonify(data)
     return jsonify({"error": "Sensor not found"})
 
@@ -409,6 +376,35 @@ def get_all_data_endpoint():
     if data:
         return jsonify(data)
     return jsonify({"error": "No data found"}), 404
+
+@app.route("/get_water_level_now", methods=["GET"])
+def get_water_level_now_endpoint():
+    data = get_water_level_status_for_day()
+    if data:
+        return jsonify(data)
+    return jsonify({"error": "No data found"}), 404
+
+@app.route("/get_ph_level_now", methods=["GET"])
+def get_ph_level_now_endpoint():
+    data = get_ph_level_status_for_day()
+    if data:
+        return jsonify(data)
+    return jsonify({"error": "No data found"}), 404
+
+@app.route("/get_combined_status", methods=["GET"])
+def get_combined_status():
+    # Fetch data from both endpoints
+    water_level_data = get_water_level_status_for_day()
+    ph_level_data = get_ph_level_status_for_day()
+
+    # Combine the data into a single response
+    combined_data = {
+        "water_level": water_level_data if water_level_data else [],
+        "ph_level": ph_level_data if ph_level_data else []
+    }
+
+    # Return combined data
+    return jsonify(combined_data)
 
 if __name__ == "__main__":
     atexit.register(cleanup)  # Register cleanup function
