@@ -18,8 +18,7 @@ $(document).ready(function() {
             { data: 'turbidity', title: 'Turbidity', render: $.fn.dataTable.render.number(',', '.', 3) },
             { data: 'turbidity_status', title: 'Turbidity Status' },
             { data: 'water_level', title: 'Water Level' },
-            { data: 'operation', title: 'Operation' },
-            { data: 'operation_status', title: 'Operation Status' },
+            { data: 'water_level_status', title: 'Water Level Status' },
             { data: 'detected_objects', title: 'Detected Fish' },
             { 
                 data: 'timestamp', 
@@ -82,9 +81,8 @@ $(document).ready(function() {
                         turbidity: row[6],
                         turbidity_status: row[7],
                         water_level: row[8],
-                        operation: row[9],
-                        operation_status: row[10],
-                        detected_objects: row[11] ? row[11] : "None"
+                        water_level_status: row[9],
+                        detected_objects: row[10] ? row[10] : "None"
                     };
                 });
     
@@ -106,8 +104,7 @@ $(document).ready(function() {
                     turbidity: '',
                     turbidity_status: '',
                     water_level: '',
-                    operation: '',
-                    operation_status: '',
+                    water_level_status: '',
                     detected_objects: ''
                 }]).draw(false);  // Prevent full redraw to keep pagination
             }
