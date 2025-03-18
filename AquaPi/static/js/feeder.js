@@ -1,23 +1,22 @@
-/*  clock */
+/* Clock */
 const hours = document.querySelector(".hours");
 const minutes = document.querySelector(".minutes");
 const seconds = document.querySelector(".seconds");
 
 clock = () => {
   let today = new Date();
-  let h = (today.getHours() % 12) + today.getMinutes() / 59; // 22 % 12 = 10pm
-  let m = today.getMinutes(); // 0 - 59
-  let s = today.getSeconds(); // 0 - 59
+  let h = (today.getHours() % 12) + today.getMinutes() / 59;
+  let m = today.getMinutes();
+  let s = today.getSeconds();
 
-  h *= 30; // 12 * 30 = 360deg
+  h *= 30;
   m *= 6;
-  s *= 6; // 60 * 6 = 360deg
+  s *= 6;
 
   rotation(hours, h);
   rotation(minutes, m);
   rotation(seconds, s);
 
-  // call every second
   setTimeout(clock, 500);
 };
 
@@ -25,7 +24,7 @@ rotation = (target, val) => {
   target.style.transform = `rotate(${val}deg)`;
 };
 
-window.onload = clock();
+window.onload = clock;
 
 function toggleDiv() {
   $(".components").toggle();
@@ -33,60 +32,54 @@ function toggleDiv() {
 }
 
 function feednow() {
-  // You can customize this based on your needs
   fetch("/feed_now", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    // You can pass data if required
-    body: JSON.stringify({
-      // Add any data you want to send in the request body
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
   })
     .then((response) => response.json())
     .then((data) => {
-      // Handle the response from the server
       console.log(data);
-      $("#modalMessage").text(data.message); // Set the message in the modal
-      $("#messageModal").modal({
-        fadeDuration: 200
-      });
+      $("#modalMessage").text(data.message);
+      $("#messageModal").modal({ fadeDuration: 200 });
     })
     .catch((error) => {
       console.error("Error:", error);
-      $("#modalMessage").text("Failed to control servo"); // Set error message
-      $("#messageModal").modal({
-        fadeDuration: 200
-      });
+      $("#modalMessage").text("Failed to control servo");
+      $("#messageModal").modal({ fadeDuration: 200 });
     });
 }
 
 $(document).ready(function () {
-  $("#timepicker").mdtimepicker(); //Initializes the time picker
-  addDiv();
-});
+  if (!$("#timepicker").data("mdtimepicker")) {
+    $("#timepicker").mdtimepicker();
+  }
 
-$("#timepicker")
-  .mdtimepicker()
-  .on("timechanged", function (e) {
-    console.log(e.time);
+  // Ensures only one event is bound
+  $("#timepicker").off("timechanged").on("timechanged", function (e) {
+    console.log("Selected time:", e.time);
     addStore(e);
   });
 
+  addDiv(); // Load schedules on page load
+});
+
 function addStore(e) {
-  // Extract hours and minutes from the time string
+  if (!e.time) {
+    console.error("No time value in event:", e);
+    return;
+  }
+
   const [hours, minutes] = e.time.split(":");
 
-  // Send the schedule time to Flask endpoint to store in SQLite
   $.ajax({
     type: "POST",
     url: "/add_schedule",
     contentType: "application/json;charset=UTF-8",
-    data: JSON.stringify({ time: `${hours}:${minutes}` }), // Send only hours and minutes
+    data: JSON.stringify({ time: `${hours}:${minutes}` }),
     success: function (response) {
       console.log(response);
-      addDiv();
+      addDiv(); // Refresh schedules after adding
     },
     error: function (error) {
       console.error(error);
@@ -95,22 +88,19 @@ function addStore(e) {
 }
 
 function showShort(id) {
-  var idv = $(id)[0]["id"];
-  $("#time_" + idv).toggle();
-  $("#short_" + idv).toggle();
+  $("#time_" + id).toggle();
+  $("#short_" + id).toggle();
 }
 
 function removeDiv(id) {
-  var idv = id;
-  // Send the schedule id to Flask endpoint to remove from SQLite
   $.ajax({
     type: "POST",
     url: "/remove_schedule",
     contentType: "application/json;charset=UTF-8",
-    data: JSON.stringify({ id: idv }),
+    data: JSON.stringify({ id: id }),
     success: function (response) {
       console.log(response);
-      addDiv();
+      addDiv(); // Refresh schedule list
     },
     error: function (error) {
       console.error(error);
@@ -119,12 +109,11 @@ function removeDiv(id) {
 }
 
 function addDiv() {
-  // Request the schedule from Flask endpoint
   $.ajax({
     type: "GET",
     url: "/get_schedules",
     success: function (schedules) {
-      $("#wrapper").html("");
+      $("#wrapper").empty();
       schedules.forEach(function (schedule) {
         let ts = schedule.time;
         var H = +ts.substr(0, 2);
@@ -134,12 +123,10 @@ function addDiv() {
         ts = h + ts.substr(2, 3) + ampm;
 
         const x = `
-          <div id=${schedule.id}>
-              <div class="btn2 btn__secondary2" onclick=showShort(${schedule.id}) id="main_${schedule.id}">
-              <div id="time_${schedule.id}">
-              ${ts}
-              </div>
-              <div class="icon2" id="short_${schedule.id}" onclick=removeDiv(${schedule.id})>
+          <div id="${schedule.id}">
+              <div class="btn2 btn__secondary2" onclick="showShort(${schedule.id})" id="main_${schedule.id}">
+              <div id="time_${schedule.id}">${ts}</div>
+              <div class="icon2" id="short_${schedule.id}" onclick="removeDiv(${schedule.id})">
                   <div class="icon__add">
                       <ion-icon name="trash"></ion-icon>
                   </div>
