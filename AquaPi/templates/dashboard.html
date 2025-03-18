@@ -15,6 +15,7 @@
       href="../static/css/nice-select2.css"
     />
 
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css" />
     <link
       rel="stylesheet"
@@ -249,17 +250,14 @@
           <h2 class="w3-white">Dashboard</h2>
           <p>Readings and Charts of Sensors</p>
         </div>
-        <div class="w3-main" style="margin-left: 0px">
-          <div class="w3-container w3-right">
-            <div class="w3-container w3-right">
-              <select id="timeRangeSelect">
-                <option data-display="Latest">Latest</option>
-                <option value="1">Hour</option>
-                <option value="2">Day</option>
-                <option value="3">Month</option>
-              </select>
+        <div class="w3-container w3-right">
+            <button type="button" class="icon-button" id="notificationButton">
+              <span class="material-icons">notifications</span>
+              <span class="icon-button__badge" id="notificationCount">0</span>
+            </button>
+            <div id="notificationDropdown" class="notification-dropdown hidden">
+              <ul id="notificationList"></ul>
             </div>
-          </div>
         </div>
       </div>
 
@@ -295,7 +293,7 @@
               <div class="w3-right w3-flex">
                 <!-- Flex container to ensure alignment -->
                 <div class="w3-right-align" style="flex-grow: 1;">
-                  <h3 id="card-water-level"> </h3>
+                  <h3 id="card-water-level">--</h3>
                 </div>
                 <div style="margin-left: 10px;">
                   <h6 id="card-water-status" class="w3-right">--</h6>
@@ -350,25 +348,15 @@
           </div>
         </div>
 
-        <div class="w3-row-padding w3-margin-bottom">
-          <div class="w3-rest">
-            <div
-              class="w3-container w3-white w3-hover-shadow w3-border-gray w3-bottombar w3-padding-16"
-            >
-              <div class="w3-left">
-                <img src="../static/img/treatment.svg" />
-              </div>
-              <div class="w3-right w3-flex">
-                <!-- Flex container to ensure alignment -->
-                <div class="w3-right-align" style="flex-grow: 1;">
-                  <h3 id="card-operation">--</h3>
-                </div>
-                <div style="margin-left: 10px;">
-                  <h6 id="card-operation-status" class="w3-right">--</h6>
-                </div>
-              </div>
-              <div class="w3-clear"></div>
-              <h4>Operation</h4>
+        <div class="w3-main" style="margin-left: 0px">
+          <div class="w3-container w3-left">
+            <div class="w3-container w3-left">
+              <select id="timeRangeSelect">
+                <option data-display="Latest">Latest</option>
+                <option value="1">Hour</option>
+                <option value="2">Day</option>
+                <!--<option value="3">Month</option>-->
+              </select>
             </div>
           </div>
         </div>
