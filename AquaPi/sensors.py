@@ -117,15 +117,15 @@ def up_ph_pump():
 def down_ph_pump():
     # Turn on peristaltic pump
     try:
-        print("Enabling PWM output")
+        #print("Enabling PWM output")
         board.set_pwm_enable()
         board.set_pwm_frequency(1000)
 
-        print("Setting PWM duty to 90% (Pumping)")
+        #print("Setting PWM duty to 90% (Pumping)")
         board.set_pwm_duty(2, 90)   # Set pwm channel 2 duty to 90%
         time.sleep(10)              # 2ML
 
-        print("Stopping PWM (Pumping done)")
+        #print("Stopping PWM (Pumping done)")
         board.set_pwm_duty(2, 0)    # Set pwm channel 2 duty to 0%
         board.set_pwm_disable()     # Set pwm2 channels duty
         time.sleep(1)
@@ -165,13 +165,13 @@ def read_operation_status(timestamp=None):
     if ph < ph_min:
         new_operations.add("pH too low, activating pH UP pump")
         #if "pH too low, activating pH UP pump" not in ongoing_operations:
-        print(f"[{timestamp}] pH too low ({ph}), activating up_pH_pump to increase pH")
-        up_ph_pump()  # Increase pH
+        #print(f"[{timestamp}] pH too low ({ph}), activating up_pH_pump to increase pH")
+        #up_ph_pump()  # Increase pH
     elif ph > ph_max:
         new_operations.add("pH too high, activating pH DOWN pump")
         #if "pH too high, activating pH DOWN pump" not in ongoing_operations:
-        print(f"[{timestamp}] pH too high ({ph}), activating down_pH_pump to decrease pH")
-        down_ph_pump()  # Decrease pH
+        #print(f"[{timestamp}] pH too high ({ph}), activating down_pH_pump to decrease pH")
+        #down_ph_pump()  # Decrease pH
     else:
         new_operations.discard("pH too low, activating pH UP pump")
         new_operations.discard("pH too high, activating pH DOWN pump")
@@ -180,22 +180,22 @@ def read_operation_status(timestamp=None):
     if water_level == "Low":
         new_operations.add("Water level low, adding water")
         if not pump_in_active:
-            print(f"[{timestamp}] Water level is LOW. Turning ON pump to ADD water.")
+            #print(f"[{timestamp}] Water level is LOW. Turning ON pump to ADD water.")
             GPIO.output(WATER_PUMP_PIN_1, GPIO.HIGH)  # Turn ON water-adding pump
             pump_in_active = True
     elif water_level == "High":
         new_operations.add("Water level high, removing water")
         if not pump_out_active:
-            print(f"[{timestamp}] Water level is HIGH. Turning ON pump to REMOVE water.")
+            #print(f"[{timestamp}] Water level is HIGH. Turning ON pump to REMOVE water.")
             GPIO.output(WATER_PUMP_PIN_2, GPIO.HIGH)  # Turn ON water-removal pump
             pump_out_active = True
     else:
         if pump_in_active:
-            print(f"[{timestamp}] Turning OFF pump for adding water.")
+            #print(f"[{timestamp}] Turning OFF pump for adding water.")
             GPIO.output(WATER_PUMP_PIN_1, GPIO.LOW)  # Turn OFF water-adding pump
             pump_in_active = False
         if pump_out_active:
-            print(f"[{timestamp}] Turning OFF pump for removing water.")
+            #print(f"[{timestamp}] Turning OFF pump for removing water.")
             GPIO.output(WATER_PUMP_PIN_2, GPIO.LOW)  # Turn OFF water-removal pump
             pump_out_active = False
         new_operations.discard("Water level low, adding water")
@@ -212,7 +212,7 @@ def read_operation_status(timestamp=None):
         operation = "No Operation"
         status = "Stable"
 
-    print(f"[{timestamp}] Final operation status: {operation}")
+    #print(f"[{timestamp}] Final operation status: {operation}")
 
     return timestamp, operation, status
 
@@ -262,7 +262,7 @@ def read_ph_level(timestamp=None):
 
     # Only accept values that are within a reasonable range of the rolling average
     if abs(PH - avg_pH) > 2.5:  # Allow slow changes but ignore extreme spikes
-        print(f"Ignoring extreme spike: {PH}, keeping {avg_pH}")
+        #print(f"Ignoring extreme spike: {PH}, keeping {avg_pH}")
         PH = avg_pH  # Use the rolling average instead of the spike
     else:
         ph_history.append(PH)  # Update history only if it's a reasonable change
@@ -275,7 +275,8 @@ def read_ph_level(timestamp=None):
     else:
         status = "Alkaline"
 
-    print(f"Filtered pH: {PH} (Rolling Avg: {avg_pH})")
+
+    #print(f"Filtered pH: {PH} (Rolling Avg: {avg_pH})")
     return timestamp, PH, status
     
 def calibrate_ph_level():
