@@ -57,9 +57,9 @@ def read_water_temperature(timestamp=None):
                 fahrenheit = (celsius * 1.8) + 32
 
                 # Determine the status based on temperature for catfish
-                if 24 <= celsius <= 29:
+                if 26 <= celsius <= 29:
                     status = "Normal"
-                elif 22 <= celsius < 24 or 29 < celsius <= 31:
+                elif 25 <= celsius < 26 or 29 < celsius <= 31:
                     status = "Warning"
                 else:
                     status = "Critical"
