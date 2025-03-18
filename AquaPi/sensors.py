@@ -10,6 +10,7 @@ import os
 import time
 import sys
 import glob
+import threading
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -51,7 +52,7 @@ def read_water_temperature(timestamp=None):
                 secondline = tfile.readlines()[1]
                 temperaturedata = secondline.split(" ")[9]
                 temperature = float(temperaturedata[2:]) / 1000
-                timestamp = time.time() * 1000
+                timestamp = int(time.time() * 1000)  # Ensures timestamp is a whole number
                 celsius = temperature
                 fahrenheit = (celsius * 1.8) + 32
 
@@ -72,18 +73,30 @@ def read_water_sensor(timestamp=None):
     # Read water level
     water_level_gpio17 = GPIO.input(FS_IR02_PIN_1)
     water_level_gpio18 = GPIO.input(FS_IR02_PIN_2)
-    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
+    timestamp = int(time.time() * 1000)  # Ensures timestamp is a whole number
 
     if water_level_gpio17 == GPIO.HIGH and water_level_gpio18 == GPIO.LOW:
         water_level = "OK"
+        status = "Stable"
+        remove_water_off()
+        pump_water_off()
     elif water_level_gpio17 == GPIO.LOW and water_level_gpio18 == GPIO.LOW:
         water_level = "Low"
+        status = "Adding Water"
+        pump_water_on()
+        remove_water_off()
     elif water_level_gpio17 == GPIO.HIGH and water_level_gpio18 == GPIO.HIGH:
         water_level = "High"
+        status = "Removing Water"
+        remove_water_on()
+        pump_water_off()
     else:
         water_level = "Unknown"
+        status = "Unknown state, check sensors"
+        remove_water_off()
+        pump_water_off()
 
-    return timestamp, water_level
+    return timestamp, water_level, status
 
 def read_pump_status(pump_number):
     # Assuming you have separate GPIO pins for each water pump
@@ -132,90 +145,6 @@ def down_ph_pump():
     except Exception as e:
         raise e
 
-# Global tracking of ongoing operations
-ongoing_operations = set()  # Stores active operations
-
-def read_operation_status(timestamp=None):
-    global pump_in_active, pump_out_active, ongoing_operations  # Track persistent state
-
-    if 'pump_in_active' not in globals():
-        pump_in_active = False 
-    if 'pump_out_active' not in globals():
-        pump_out_active = False
-    if 'ongoing_operations' not in globals():
-        ongoing_operations = set()
-
-    if timestamp is None:
-        timestamp = time.time() * 1000  # Get the current timestamp
-
-    # Read sensor values
-    _, celsius, fahrenheit, temp_status = read_water_temperature()
-    _, water_level = read_water_sensor()
-    _, ph, ph_status = read_ph_level()
-    _, turbidity, turbidity_status = read_turbidity()
-
-    # pH threshold range for stability
-    ph_min = 6.8  # Lower bound
-    ph_max = 7.2  # Upper bound
-
-    # Create a new list for the current cycle
-    new_operations = set(ongoing_operations)  
-
-    # Logic for controlling pH pumps
-    if ph < ph_min:
-        new_operations.add("pH too low, activating pH UP pump")
-        #if "pH too low, activating pH UP pump" not in ongoing_operations:
-        #print(f"[{timestamp}] pH too low ({ph}), activating up_pH_pump to increase pH")
-        #up_ph_pump()  # Increase pH
-    elif ph > ph_max:
-        new_operations.add("pH too high, activating pH DOWN pump")
-        #if "pH too high, activating pH DOWN pump" not in ongoing_operations:
-        #print(f"[{timestamp}] pH too high ({ph}), activating down_pH_pump to decrease pH")
-        #down_ph_pump()  # Decrease pH
-    else:
-        new_operations.discard("pH too low, activating pH UP pump")
-        new_operations.discard("pH too high, activating pH DOWN pump")
-
-    # Logic for controlling water pumps
-    if water_level == "Low":
-        new_operations.add("Water level low, adding water")
-        if not pump_in_active:
-            #print(f"[{timestamp}] Water level is LOW. Turning ON pump to ADD water.")
-            GPIO.output(WATER_PUMP_PIN_1, GPIO.HIGH)  # Turn ON water-adding pump
-            pump_in_active = True
-    elif water_level == "High":
-        new_operations.add("Water level high, removing water")
-        if not pump_out_active:
-            #print(f"[{timestamp}] Water level is HIGH. Turning ON pump to REMOVE water.")
-            GPIO.output(WATER_PUMP_PIN_2, GPIO.HIGH)  # Turn ON water-removal pump
-            pump_out_active = True
-    else:
-        if pump_in_active:
-            #print(f"[{timestamp}] Turning OFF pump for adding water.")
-            GPIO.output(WATER_PUMP_PIN_1, GPIO.LOW)  # Turn OFF water-adding pump
-            pump_in_active = False
-        if pump_out_active:
-            #print(f"[{timestamp}] Turning OFF pump for removing water.")
-            GPIO.output(WATER_PUMP_PIN_2, GPIO.LOW)  # Turn OFF water-removal pump
-            pump_out_active = False
-        new_operations.discard("Water level low, adding water")
-        new_operations.discard("Water level high, removing water")
-
-    # Update the persistent operation state
-    ongoing_operations = new_operations
-
-    # Generate final operation string
-    if ongoing_operations:
-        operation = " | ".join(ongoing_operations)  # Combine all active operations
-        status = "Ongoing"
-    else:
-        operation = "No Operation"
-        status = "Stable"
-
-    #print(f"[{timestamp}] Final operation status: {operation}")
-
-    return timestamp, operation, status
-
 def remove_water_on():
     # Turn on water pump
     GPIO.output(WATER_PUMP_PIN_1, GPIO.HIGH) #Pump 2 adds water
@@ -246,12 +175,19 @@ from collections import deque
 
 ph_history = deque(maxlen=5)  # Store the last 5 readings for smoothing
 
+last_ph_up_activation = 0  # Stores the last activation time for up_ph_pump()
+last_ph_down_activation = 0  # Stores the last activation time for down_ph_pump()
+
+def delayed_pump_activation(pump_function, delay):
+    """ Delays the activation of a pump by `delay` seconds. """
+    threading.Timer(delay, pump_function).start()
+
 def read_ph_level(timestamp=None):
-    global ph_history
+    global ph_history, last_ph_up_activation, last_ph_down_activation
     adc0 = ads1115.readVoltage(0)
     PH = ph.read_PH(adc0['r'], temperature)
 
-    timestamp = time.time() * 1000
+    timestamp = int(time.time() * 1000)  # Ensures timestamp is a whole number
 
     # If history is empty, initialize it with the current value
     if not ph_history:
@@ -266,15 +202,24 @@ def read_ph_level(timestamp=None):
         PH = avg_pH  # Use the rolling average instead of the spike
     else:
         ph_history.append(PH)  # Update history only if it's a reasonable change
+    
+    current_time = time.time()
 
     # Classify pH status
     if PH < 6.8:
-        status = "Acidic"
+        status = "Acidic | Adding pH UP"
+        # Check if 30 seconds have passed since last activation
+        if current_time - last_ph_up_activation >= 30:
+            last_ph_up_activation = current_time
+            delayed_pump_activation(up_ph_pump, 30)  # Wait 30 seconds before activation
     elif 6.8 <= PH <= 7.2:
         status = "Neutral"
     else:
-        status = "Alkaline"
-
+        status = "Alkaline | Adding pH Down"
+        # Check if 30 seconds have passed since last activation
+        if current_time - last_ph_down_activation >= 30:
+            last_ph_down_activation = current_time
+            delayed_pump_activation(down_ph_pump, 30)  # Wait 30 seconds before activation
 
     #print(f"Filtered pH: {PH} (Rolling Avg: {avg_pH})")
     return timestamp, PH, status
@@ -296,28 +241,34 @@ def reset_ph_level():
 
 previous_turbidity = None
 
+turbidity_history = deque(maxlen=5)
+
 def read_turbidity(timestamp=None):
     global previous_turbidity
     #Get the Digital Value of Analog of selected channel
     adc1 = ads1115.readVoltage(1)
     #Convert the analog reading (which goes from 0 - 1023) to a voltage (0 - 5V):
-    turbidity = (adc1['r']) * (5.0 / 1024.0)
+    raw_turbidity = (adc1['r']) * (5.0 / 1024.0)
 
-    current_turbidity = turbidity
-    timestamp = time.time() * 1000  # Get current timestamp in milliseconds
+    timestamp = int(time.time() * 1000)  # Ensures timestamp is a whole number
 
-    if previous_turbidity is None:
-        previous_turbidity = current_turbidity
+    # If history is empty, initialize it with the current value
+    if not turbidity_history:
+        turbidity_history.extend([raw_turbidity] * turbidity_history.maxlen)
 
-    # Check if the fluctuation is within ±5 of the previous reading
-    if abs(current_turbidity - previous_turbidity) > 2:
-        current_turbidity = previous_turbidity
+    # Compute rolling average of last 5 readings
+    avg_turbidity = sum(turbidity_history) / len(turbidity_history)
+
+    # Only accept values that are within ±2 of the rolling average
+    if abs(raw_turbidity - avg_turbidity) > 2:
+        stabilized_turbidity = avg_turbidity  # Ignore extreme spikes
     else:
-        previous_turbidity = current_turbidity
-        
-    if current_turbidity < 5:
+        stabilized_turbidity = raw_turbidity  # Accept the new value
+        turbidity_history.append(stabilized_turbidity)  # Update history
+
+    if stabilized_turbidity < 5:
         status = "Clear"
     else:
         status = "Cloudy"
 
-    return timestamp, current_turbidity, status
+    return timestamp, stabilized_turbidity, status
