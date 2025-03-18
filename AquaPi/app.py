@@ -108,18 +108,14 @@ def read_sensors():
                 sensor_data["operation"] = (timestamp, operation, status)
                 print(f"[DEBUG] Updated operation: {sensor_data['operation']}")
 
-            # Use the same timestamp for detected objects if new data is found
-            if Camera.detected_objects is not None:
+            # If new detected objects are found, update them
+            if Camera.detected_objects:
                 sensor_data["detected_objects"] = (timestamp, Camera.detected_objects)
                 print(f"[DEBUG] Updated detected objects: {sensor_data['detected_objects']}")
                 Camera.detected_objects = []  # Clear after storing
             elif sensor_data["detected_objects"]:
-                # Reuse the last timestamp for detected objects
-                sensor_data["detected_objects"] = (
-                    sensor_data["detected_objects"][0],  # Keep the old timestamp
-                    sensor_data["detected_objects"][1]   # Keep the old object list
-                )
-                print("[DEBUG] No new detections, reusing previous detected objects.")
+                # Do not clear detected_objects; retain the last valid value
+                print("[DEBUG] No new detections, keeping previous detected objects.")
 
             time.sleep(1)  # Adjust sampling rate
 
