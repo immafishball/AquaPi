@@ -13,6 +13,11 @@ from base_camera import BaseCamera
 from ultralytics import YOLO
 from datetime import datetime
 
+from database import (
+    save_dead_fish_detection,
+    save_fish_change_event,
+)
+
 # Define and parse input arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
@@ -63,6 +68,8 @@ with open(PATH_TO_LABELS, "r") as file:
 
 class Camera(BaseCamera):
     detected_objects = []  # List to store detected objects
+    last_detected_fish = None  # Store the last detected fish for comparison
+
     #image_files = sorted(glob("*.jpg"))[:3]  # Load only the first 3 images
     image_files = sorted(glob("*.jpg"))  # This gets all .jpg files in the folder
     imgs = [cv2.imread(img) for img in image_files if cv2.imread(img) is not None]  # Read images safely
@@ -72,6 +79,8 @@ class Camera(BaseCamera):
 
     @staticmethod
     def frames():
+        first_detection = True  # Track if it's the initial detection
+
         while True:
             # Select an image
             img = Camera.imgs[int(time.time()) % len(Camera.imgs)].copy()
@@ -87,9 +96,18 @@ class Camera(BaseCamera):
 
             # Process detection results
             detected_objects_in_frame = []
+            detected_fish = None
             detected_objects = results[0].boxes.data
             px = pd.DataFrame(detected_objects).astype("float")
+            # Get the current time in seconds
+            current_time = int(time.time())
 
+            # Force it to align with the previous full minute while keeping the seconds part
+            fixed_timestamp = (current_time // 60) * 60 + (current_time % 60)
+
+            # Convert to milliseconds
+            timestamp = fixed_timestamp * 1000  # Ensures timestamp is a whole number
+            
             for index, row in px.iterrows():
                 x1, y1, x2, y2 = int(row[0]), int(row[1]), int(row[2]), int(row[3])
                 confidence = int(row[4] * 100)
@@ -104,9 +122,28 @@ class Camera(BaseCamera):
                 detected_object = {'name': class_name, 'confidence': confidence}
                 detected_objects_in_frame.append(detected_object)
 
+                # Detect if it's a fish species
+                if "Catfish" in class_name or "Tilapia" in class_name or "Dalag" in class_name:
+                    detected_fish = class_name
+
+                # Save to database if "Catfish - Dead" is detected
+                if class_name == "Dead Catfish":
+                    save_dead_fish_detection(timestamp, [{"name": class_name, "confidence": confidence}])
+                    print(f"[ALERT] Dead fish detected! Saved to database.")
+
                 # Draw bounding box and label
                 cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cvzone.putTextRect(img, f"{class_name} ({confidence}%)", (x1, y1), 1, 1)
+
+            # **Fish Change Detection Logic**
+            if detected_fish and detected_fish != "Dead Catfish":
+                if first_detection:
+                    Camera.last_detected_fish = detected_fish
+                    first_detection = False  
+                elif detected_fish != Camera.last_detected_fish:
+                    print(f"[NOTIFICATION] Fish changed from {Camera.last_detected_fish} to {detected_fish}")
+                    save_fish_change_event(timestamp, Camera.last_detected_fish, detected_fish)
+                    Camera.last_detected_fish = detected_fish  
 
             # Update detected objects list
             Camera.detected_objects = detected_objects_in_frame

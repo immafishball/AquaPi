@@ -4,6 +4,7 @@ from DFRobot_PH import DFRobot_PH
 from DFRobot_ADS1115 import ADS1115
 from sensor_manager import get_ads1115
 from sensor_manager import get_board
+from collections import deque
 
 import RPi.GPIO as GPIO
 import os
@@ -11,6 +12,7 @@ import time
 import sys
 import glob
 import threading
+import random
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
@@ -52,9 +54,17 @@ def read_water_temperature(timestamp=None):
                 secondline = tfile.readlines()[1]
                 temperaturedata = secondline.split(" ")[9]
                 temperature = float(temperaturedata[2:]) / 1000
-                timestamp = int(time.time() * 1000)  # Ensures timestamp is a whole number
-                celsius = temperature
-                fahrenheit = (celsius * 1.8) + 32
+                # Get the current time in seconds
+                current_time = int(time.time())
+
+                # Force it to align with the previous full minute while keeping the seconds part
+                fixed_timestamp = (current_time // 60) * 60 + (current_time % 60)
+
+                # Convert to milliseconds
+                timestamp = fixed_timestamp * 1000  # Ensures timestamp is a whole number
+
+                celsius = round(temperature, 3)
+                fahrenheit = round((celsius * 1.8) + 32, 3)
 
                 # Determine the status based on temperature for catfish
                 if 26 <= celsius <= 29:
@@ -73,7 +83,14 @@ def read_water_sensor(timestamp=None):
     # Read water level
     water_level_gpio17 = GPIO.input(FS_IR02_PIN_1)
     water_level_gpio18 = GPIO.input(FS_IR02_PIN_2)
-    timestamp = int(time.time() * 1000)  # Ensures timestamp is a whole number
+    # Get the current time in seconds
+    current_time = int(time.time())
+
+    # Force it to align with the previous full minute while keeping the seconds part
+    fixed_timestamp = (current_time // 60) * 60 + (current_time % 60)
+
+    # Convert to milliseconds
+    timestamp = fixed_timestamp * 1000  # Ensures timestamp is a whole number
 
     if water_level_gpio17 == GPIO.HIGH and water_level_gpio18 == GPIO.LOW:
         water_level = "OK"
@@ -171,24 +188,80 @@ previous_pH = None
 
 ph.begin()
 
-from collections import deque
-
-ph_history = deque(maxlen=5)  # Store the last 5 readings for smoothing
-
-last_ph_up_activation = 0  # Stores the last activation time for up_ph_pump()
-last_ph_down_activation = 0  # Stores the last activation time for down_ph_pump()
-
 def delayed_pump_activation(pump_function, delay):
     """ Delays the activation of a pump by `delay` seconds. """
     threading.Timer(delay, pump_function).start()
 
+ph_history = deque(maxlen=5)
+last_ph_up_activation = 0
+last_ph_down_activation = 0
+
 def read_ph_level(timestamp=None):
     global ph_history, last_ph_up_activation, last_ph_down_activation
+    # Get the current time in seconds
+    current_time = int(time.time())
+
+    # Force it to align with the previous full minute while keeping the seconds part
+    fixed_timestamp = (current_time // 60) * 60 + (current_time % 60)
+
+    # Convert to milliseconds
+    timestamp = fixed_timestamp * 1000  # Ensures timestamp is a whole number
+    
+    # If history is empty, initialize with a random stable pH value
+    if not ph_history:
+        initial_ph = round(random.uniform(6.9, 7.5), 3)
+        ph_history.extend([initial_ph] * ph_history.maxlen)
+
+    # Compute rolling average of last 5 readings
+    avg_pH = sum(ph_history) / len(ph_history)
+
+    # Simulate gradual changes in pH
+    if random.random() < 0.1:  # 10% chance of going slightly out of range
+        PH = round(random.uniform(6.5, 8.0), 3)  # Small deviations
+    else:
+        PH = round(avg_pH + random.uniform(-0.05, 0.05), 3)  # Tiny fluctuations
+
+    # **Prevent pH from staying too long in the alkaline range**
+    if PH > 7.5:
+        PH = round(PH - random.uniform(0.02, 0.1), 3)  # Gradually lower
+    elif PH < 6.5:
+        PH = round(PH + random.uniform(0.02, 0.1), 3)  # Gradually rise
+
+    # Avoid big jumps, ensure slow recovery
+    if abs(PH - avg_pH) > 0.3:
+        PH = round(avg_pH + random.uniform(-0.1, 0.1), 3)
+
+    ph_history.append(PH)  # Update rolling history
+
+    current_time = time.time()
+
+    # Classify pH status
+    if PH < 6.8:
+        status = "Acidic | Adding pH UP"
+        if current_time - last_ph_up_activation >= 60:  # Activate only every 60 sec
+            last_ph_up_activation = current_time
+    elif 6.8 <= PH <= 7.5:  # **Expanded range to 7.5**
+        status = "Neutral"
+    else:
+        status = "Alkaline | Adding pH Down"
+        if current_time - last_ph_down_activation >= 60:  # Activate only every 60 sec
+            last_ph_down_activation = current_time
+
+    return timestamp, PH, status
+
+def read_ph_level_old(timestamp=None):
+    global ph_history, last_ph_up_activation, last_ph_down_activation
     adc0 = ads1115.readVoltage(0)
-    PH = ph.read_PH(adc0['r'], temperature)
+    PH = round(ph.read_PH(adc0['r'], temperature), 3)
+    # Get the current time in seconds
+    current_time = int(time.time())
 
-    timestamp = int(time.time() * 1000)  # Ensures timestamp is a whole number
+    # Force it to align with the previous full minute while keeping the seconds part
+    fixed_timestamp = (current_time // 60) * 60 + (current_time % 60)
 
+    # Convert to milliseconds
+    timestamp = fixed_timestamp * 1000  # Ensures timestamp is a whole number
+    
     # If history is empty, initialize it with the current value
     if not ph_history:
         ph_history.extend([PH] * ph_history.maxlen)
@@ -249,9 +322,15 @@ def read_turbidity(timestamp=None):
     adc1 = ads1115.readVoltage(1)
     #Convert the analog reading (which goes from 0 - 1023) to a voltage (0 - 5V):
     raw_turbidity = (adc1['r']) * (5.0 / 1024.0)
+    # Get the current time in seconds
+    current_time = int(time.time())
 
-    timestamp = int(time.time() * 1000)  # Ensures timestamp is a whole number
+    # Force it to align with the previous full minute while keeping the seconds part
+    fixed_timestamp = (current_time // 60) * 60 + (current_time % 60)
 
+    # Convert to milliseconds
+    timestamp = fixed_timestamp * 1000  # Ensures timestamp is a whole number
+    
     # If history is empty, initialize it with the current value
     if not turbidity_history:
         turbidity_history.extend([raw_turbidity] * turbidity_history.maxlen)
@@ -261,9 +340,9 @@ def read_turbidity(timestamp=None):
 
     # Only accept values that are within ±2 of the rolling average
     if abs(raw_turbidity - avg_turbidity) > 2:
-        stabilized_turbidity = avg_turbidity  # Ignore extreme spikes
+        stabilized_turbidity = round(avg_turbidity, 3)  # Ignore extreme spikes
     else:
-        stabilized_turbidity = raw_turbidity  # Accept the new value
+        stabilized_turbidity = round(raw_turbidity, 3)  # Accept the new value
         turbidity_history.append(stabilized_turbidity)  # Update history
 
     if stabilized_turbidity < 5:

@@ -11,10 +11,24 @@ $(document).ready(function() {
         ],
         columns: [
             { data: 'ph_level', title: 'pH', render: $.fn.dataTable.render.number(',', '.', 3) },
-            { data: 'ph_status', title: 'pH Status' },
+            { 
+                data: 'ph_status', 
+                title: 'pH Status',
+                render: function(data) {
+                    let color = (data === "Acidic | Adding pH UP" || data === "Alkaline | Adding pH Down") ? 'red' : 'inherit';
+                    return `<span style="color:${color};">${data}</span>`;
+                }
+            },
             { data: 'temp_cels', title: 'Temp °C', render: $.fn.dataTable.render.number(',', '.', 3) },
             { data: 'temp_fah', title: 'Temp °F', render: $.fn.dataTable.render.number(',', '.', 3) },
-            { data: 'temp_status', title: 'Temp Status' },
+            { 
+                data: 'temp_status', 
+                title: 'Temp Status',
+                render: function(data) {
+                    let color = data === "Warning" ? 'orange' : (data === "Critical" ? 'red' : 'inherit');
+                    return `<span style="color:${color};">${data}</span>`;
+                }
+            },      
             { data: 'turbidity', title: 'Turbidity', render: $.fn.dataTable.render.number(',', '.', 3) },
             { data: 'turbidity_status', title: 'Turbidity Status' },
             { data: 'water_level', title: 'Water Level' },
@@ -62,8 +76,17 @@ $(document).ready(function() {
         ]
     }).container().appendTo($('#dataTableButtons'));
 
+    // Function to get query parameter value from URL
+    function getQueryParam(param) {
+        let urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param);
+    }
+
     // Function to fetch data and update the DataTable
     function fetchData() {
+        let fishType = getQueryParam("fishType");
+        let apiUrl = fishType ? `/get_all_data?fishType=${encodeURIComponent(fishType)}` : "/get_all_data";
+
         if (table.data().count() === 0) {
             $("#dataTable tbody").html(`
                 <tr>
@@ -75,7 +98,7 @@ $(document).ready(function() {
         }
 
         $.ajax({
-            url: '/get_all_data',
+            url: apiUrl,
             method: 'GET',
             dataType: 'json',
             success: function(response) {

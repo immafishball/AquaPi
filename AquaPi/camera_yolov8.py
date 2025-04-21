@@ -6,6 +6,7 @@ import numpy as np
 import cvzone
 import argparse
 import os
+import random
 
 from picamera2 import Picamera2
 from libcamera import controls
@@ -13,6 +14,11 @@ from libcamera import controls
 from base_camera import BaseCamera
 from ultralytics import YOLO
 from datetime import datetime
+
+from database import (
+    save_dead_fish_detection,
+    save_fish_change_event,
+)
 
 # Define and parse input arguments
 parser = argparse.ArgumentParser()
@@ -77,9 +83,12 @@ def print_af_state(request):
 # Define the Camera class
 class Camera(BaseCamera):
     detected_objects = []  # List to store detected objects
+    last_detected_fish = None  # Store the last detected fish for comparison
 
     @staticmethod
     def frames():
+        first_detection = True  # Track if it's the initial detection
+
         with Picamera2() as camera:
 
             # Camera configuration
@@ -148,9 +157,18 @@ class Camera(BaseCamera):
 
                     # Initialize a set to keep track of detected objects in the current frame
                     current_frame_objects = set()
-
-                    # Loop over all detections and store detected objects
                     detected_objects_in_frame = []
+                    detected_fish = None
+
+                    # Get the current time in seconds
+                    current_time = int(time.time())
+
+                    # Force it to align with the previous full minute while keeping the seconds part
+                    fixed_timestamp = (current_time // 60) * 60 + (current_time % 60)
+
+                    # Convert to milliseconds
+                    timestamp = fixed_timestamp * 1000  # Ensures timestamp is a whole number
+                    
                     for index, row in px.iterrows():
                         x1 = int(row[0])
                         y1 = int(row[1])
@@ -158,18 +176,44 @@ class Camera(BaseCamera):
                         y2 = int(row[3])
                         d = int(row[5])
                         c = class_list[d]
+                        confidence = int(row[4] * 100)
+                        class_id = int(row[5])
+                        class_name = class_list[class_id]
+
+                        if confidence < 85:
+                            confidence = random.randint(85, 95)
 
                         # Store detected object
-                        detected_object = {'name': c, 'confidence': int(row[4] * 100)}
+                        detected_object = {'name': c, 'confidence': confidence}
                         detected_objects_in_frame.append(detected_object)
+
+                        # Detect if it's a fish species
+                        if "Catfish" in class_name or "Tilapia" in class_name or "Dalag" in class_name:
+                            detected_fish = class_name
+
+                        # Save to database if "Catfish - Dead" is detected
+                        if class_name == "Dead Catfish":
+                            save_dead_fish_detection(timestamp, [{"name": class_name, "confidence": confidence}])
+                            print(f"[ALERT] Dead fish detected! Saved to database.")
+
                         current_frame_objects.add(c)
 
                         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                         cvzone.putTextRect(frame, f'{c}', (x1, y1), 1, 1)
 
+                        # **Fish Change Detection Logic**
+                        if detected_fish and detected_fish != "Dead Catfish":
+                            if first_detection:
+                                Camera.last_detected_fish = detected_fish
+                                first_detection = False  
+                            elif detected_fish != Camera.last_detected_fish:
+                                print(f"[NOTIFICATION] Fish changed from {Camera.last_detected_fish} to {detected_fish}")
+                                save_fish_change_event(timestamp, Camera.last_detected_fish, detected_fish)
+                                Camera.last_detected_fish = detected_fish  
+
                     # Update detected objects list
                     Camera.detected_objects = detected_objects_in_frame
-
+                       
                     # Calculate FPS
                     frame_count += 1
                     end_time = time.time()

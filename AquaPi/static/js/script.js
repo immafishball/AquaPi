@@ -83,15 +83,14 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   });
 
-  const fetchData = (temperatureUrl, pHUrl, waterLevelUrl, turbidityUrl, operationUrl, callback) => () =>
+  const fetchData = (temperatureUrl, pHUrl, waterLevelUrl, turbidityUrl, callback) => () =>
     Promise.all([
       fetch(temperatureUrl).then(response => response.json()),
       fetch(pHUrl).then(response => response.json()),
       fetch(waterLevelUrl).then(response => response.json()),
-      fetch(turbidityUrl).then(response => response.json()),
-      fetch(operationUrl).then(response => response.json())
+      fetch(turbidityUrl).then(response => response.json())
     ])
-    .then(([temperatureData, pHData, waterLevelData, turbidityData, operationData]) => callback(temperatureData, pHData, waterLevelData, turbidityData, operationData))
+    .then(([temperatureData, pHData, waterLevelData, turbidityData]) => callback(temperatureData, pHData, waterLevelData, turbidityData))
     .catch(error => console.error(`Error fetching data:`, error));
 
   let maxDisplayedDataPoints = 10; // Initial value
@@ -99,7 +98,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let pHEndpoint = "/get_ph_level?timeRange=latest";
   let waterLevelEndpoint = "/get_water_level?timeRange=latest";
   let turbidityEndpoint = "/get_turbidity?timeRange=latest";
-  let operationEndpoint = "/get_operation?timeRange=latest";
   let intervalId;
 
   const updateTemperatureChartData = (data) => {
@@ -198,7 +196,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const updateWaterLevelData = (data) => {
-    let water_level, timestamp;
+    let water_level, timestamp, status;
     const isLastHourEndpoint = data[0] && Array.isArray(data[0]);
     const newDataPoints = isLastHourEndpoint ? data : [data];
 
@@ -208,7 +206,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     newDataPoints.forEach((datapoint) => {
-      [timestamp, water_level] = datapoint;
+      [timestamp, water_level, status] = datapoint;
 
       let formattedDate;
       if (timeRangeSelect.value === "2") {
@@ -229,9 +227,9 @@ document.addEventListener("DOMContentLoaded", () => {
     //waterLevel.update();
 
     const currentwaterLevelElement = document.getElementById("card-water-level");
-    //const currentwaterLevelStatusElement = document.getElementById("card-ph-status");
+    const currentwaterLevelStatusElement = document.getElementById("card-water-status");
     currentwaterLevelElement.innerHTML = water_level;
-    //currentwaterLevelStatusElement.innerHTML = status;
+    currentwaterLevelStatusElement.innerHTML = status;
   };
 
   const updateTurbidityData = (data) => {
@@ -271,60 +269,21 @@ document.addEventListener("DOMContentLoaded", () => {
     currentturbidityStatusElement.innerHTML = status;
   };
 
-  const updateOperationData = (data) => {
-    let operation, timestamp, status;
-    const isLastHourEndpoint = data[0] && Array.isArray(data[0]);
-    const newDataPoints = isLastHourEndpoint ? data : [data];
-
-    if (isLastHourEndpoint) {
-      //turbidity.data.labels = [];
-      //turbidity.data.datasets[0].data = [];
-    }
-
-    newDataPoints.forEach((datapoint) => {
-      [timestamp, operation, status] = datapoint;
-
-      let formattedDate;
-      if (timeRangeSelect.value === "2") {
-        formattedDate = new Date(timestamp).toLocaleString();
-      } else {
-        formattedDate = new Date(timestamp).toLocaleTimeString();
-      }
-
-      //turbidity.data.labels.push(formattedDate);
-      //turbidity.data.datasets[0].data.push(pH.toFixed(2));
-    });
-
-    //if (turbidity.data.labels.length > maxDisplayedDataPoints) {
-      //turbidity.data.labels.shift();
-      //turbidity.data.datasets[0].data.shift();
-    //}
-
-    //turbidity.update();
-
-    const currentoperationElement = document.getElementById("card-operation");
-    const currentoperationStatusElement = document.getElementById("card-operation-status");
-    // Check if the operation is "No Operation", otherwise show "Water Treatment"
-    currentOperationElement.innerHTML = (operation === "No Operation") ? "No Operation" : "Water Treatment";
-    currentOperationStatusElement.innerHTML = status;  // Keep status unchanged
-  };
-
-  const updateCharts = (temperatureData, pHData, waterLevelData, turbidityData, operationData) => {
+  const updateCharts = (temperatureData, pHData, waterLevelData, turbidityData) => {
     updateTemperatureChartData(temperatureData);
     updatepHChartData(pHData);
     updateWaterLevelData(waterLevelData);
     updateTurbidityData(turbidityData);
-    updateOperationData(operationData)
   };
 
-  const startInterval = (temperatureUrl, pHUrl, waterLevelUrl, turbidityUrl, operationUrl) => {
+  const startInterval = (temperatureUrl, pHUrl, waterLevelUrl, turbidityUrl) => {
     clearInterval(intervalId); // Clear previous interval
-    const fetchDataCallback = fetchData(temperatureUrl, pHUrl, waterLevelUrl, turbidityUrl, operationUrl, updateCharts);
+    const fetchDataCallback = fetchData(temperatureUrl, pHUrl, waterLevelUrl, turbidityUrl, updateCharts);
     fetchDataCallback(); // Initial fetch
     intervalId = setInterval(fetchDataCallback, 5000);
   };
 
-  startInterval(temperatureEndpoint, pHEndpoint, waterLevelEndpoint, turbidityEndpoint, operationEndpoint);
+  startInterval(temperatureEndpoint, pHEndpoint, waterLevelEndpoint, turbidityEndpoint);
 
   const timeRangeSelect = document.getElementById("timeRangeSelect");
   timeRangeSelect.addEventListener("change", () => {
@@ -335,30 +294,26 @@ document.addEventListener("DOMContentLoaded", () => {
         pHEndpoint = "/get_ph_level?timeRange=lastHour";
         waterLevelEndpoint = "/get_water_level?timeRange=lastHour";
         turbidityEndpoint = "/get_turbidity?timeRange=lastHour";
-        operationEndpoint = "/get_operation?timeRange=lastHour";
         break;
       case "2":
         temperatureEndpoint = "/get_temperature?timeRange=lastDay";
         pHEndpoint = "/get_ph_level?timeRange=lastDay";
         waterLevelEndpoint = "/get_water_level?timeRange=lastDay";
         turbidityEndpoint = "/get_turbidity?timeRange=lastDay";
-        operationEndpoint = "/get_operation?timeRange=lastDay";
         break;
       case "3":
         temperatureEndpoint = "/get_temperature?timeRange=lastMonth";
         pHEndpoint = "/get_ph_level?timeRange=lastMonth";
         waterLevelEndpoint = "/get_water_level?timeRange=lastMonth";
         turbidityEndpoint = "/get_turbidity?timeRange=lastMonth";
-        operationEndpoint = "/get_operation?timeRange=lastMonth";
         break;
       default:
         temperatureEndpoint = "/get_temperature?timeRange=latest";
         pHEndpoint = "/get_ph_level?timeRange=latest";
         waterLevelEndpoint = "/get_water_level?timeRange=latest";
         turbidityEndpoint = "/get_turbidity?timeRange=latest";
-        operationEndpoint = "/get_operation?timeRange=latest";
     }
-    startInterval(temperatureEndpoint, pHEndpoint, waterLevelEndpoint, turbidityEndpoint, operationEndpoint)
+    startInterval(temperatureEndpoint, pHEndpoint, waterLevelEndpoint, turbidityEndpoint)
   });
 });
 
@@ -373,38 +328,67 @@ document.addEventListener("DOMContentLoaded", () => {
   // Fetch status log notifications
   const fetchNotifications = async () => {
     try {
-      const response = await fetch("/get_combined_status");
-      const data = await response.json();
+      const [statusResponse, deadFishResponse, fishChangeResponse] = await Promise.all([
+        fetch("/get_combined_status").then(res => res.json()),
+        fetch("/get_dead_fish").then(res => res.json()),
+        fetch("/get_fish_changes").then(res => res.json()) // Fetch fish change events
+    ]);
 
-      // Check if we got a valid response
-      if (!data || !data.water_level || !data.ph_level) {
-        notificationCount.textContent = 0;
-        notificationCount.style.display = "none";
-        renderNotifications([]); // Ensure it shows "No new notifications"
-        return;
-      }
+    let combinedNotifications = [];
 
-      // Combine ph_level and water_level data into a single list
-      const combinedNotifications = [
-        ...data.water_level.map(([time, status]) => ({ time, status, category: "Water Level" })),
-        ...data.ph_level.map(([time, status]) => ({ time, status, category: "pH Level" }))
-      ];
+    // Process water level and pH level notifications
+    if (statusResponse && statusResponse.water_level && statusResponse.ph_level) {
+        combinedNotifications = [
+            ...statusResponse.water_level.map(([_, time, , status]) => ({ time, status, category: "Water Level" })),
+            ...statusResponse.ph_level.map(([_, time, , status]) => ({ time, status, category: "pH Level" }))
+        ];
+    }
 
-      // Sort notifications by time (most recent first)
-      combinedNotifications.sort((a, b) => new Date(b.time) - new Date(a.time));
+    // Process dead fish detection
+    if (deadFishResponse.timestamp) {
+        combinedNotifications.push({
+            time: new Date(deadFishResponse.timestamp).toISOString(),
+            status: `(Confidence: ${deadFishResponse.confidence.toFixed(2)}%)`,
+            category: "Dead Fish Alert"
+        });
+    }
 
-      // Check if new notifications arrived before updating UI
-      if (JSON.stringify(combinedNotifications) !== JSON.stringify(lastNotifications)) {
+    // Process fish status changes
+    if (fishChangeResponse && fishChangeResponse.length > 0) {
+      fishChangeResponse.forEach(event => {
+          const statusText = `${event.status}`;
+          let additionalText = "";
+
+          // Extract the fish name after "to "
+          const match = statusText.match(/to\s+(.+)/);
+          if (match) {
+              additionalText = `\nParameters currently set for: ${match[1]}`;
+          }
+
+          combinedNotifications.push({
+              time: new Date(Number(event.timestamp)).toISOString(),
+              status: statusText + additionalText,
+              category: "Fish Status"
+          });
+      });
+    }
+
+    // Sort notifications by most recent first
+    combinedNotifications.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    // Check if new notifications arrived before updating UI
+    if (JSON.stringify(combinedNotifications) !== JSON.stringify(lastNotifications)) {
         lastNotifications = combinedNotifications;
         renderNotifications(combinedNotifications);
-      }
+    }
 
-      // Update the notification count
-      notificationCount.textContent = combinedNotifications.length;
-      notificationCount.style.display = combinedNotifications.length > 0 ? "inline-block" : "none";
+    // Update the notification count
+    notificationCount.textContent = combinedNotifications.length;
+    notificationCount.style.display = combinedNotifications.length > 0 ? "inline-block" : "none";
+
     } catch (error) {
-      console.error("Error fetching notifications:", error);
-      renderNotifications([]); // Prevents UI freeze in case of API error
+        console.error("Error fetching notifications:", error);
+        renderNotifications([]); // Prevents UI freeze in case of API error
     }
   };
 

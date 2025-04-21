@@ -77,7 +77,7 @@ def execute_with_retry_old(query, params=(), retries=10, delay=1, fetch=True):
     return [] if fetch else None  # Return empty list for SELECT queries
         
 # Fetch all data
-def get_all_data():
+def get_all_data(fish_type=None):
     query = '''
         WITH RankedObjects AS (
         SELECT 
@@ -85,6 +85,7 @@ def get_all_data():
             d.object_name || ' (' || d.confidence || '%)' AS detected_objects,
             ROW_NUMBER() OVER (PARTITION BY d.timestamp ORDER BY d.confidence DESC) AS rank
         FROM detected_objects_log d
+        WHERE (:fish_type IS NULL OR d.object_name = :fish_type)
         )
         SELECT 
         p.timestamp AS timestamp, 
@@ -105,7 +106,11 @@ def get_all_data():
         LEFT JOIN RankedObjects ro ON p.timestamp = ro.timestamp AND ro.rank = 1
         ORDER BY p.timestamp ASC;
     '''
-    rows = execute_with_retry(query)
+    
+    params = {"fish_type": fish_type}  # Define query parameters
+    
+    rows = execute_with_retry(query, params)
+    
     return [[
         row["timestamp"], 
         row["ph"], row["ph_status"],
@@ -235,16 +240,22 @@ def save_detected_objects(timestamp, detected_objects):
 # Fetch water level status for the current day with specific statuses
 def get_water_level_status_for_day():
     query = '''
-        SELECT 
-        datetime(timestamp / 1000, 'unixepoch') AS day,  -- Convert Unix timestamp (milliseconds) to a readable date
-        timestamp, 
-        water_level, 
-        status
-        FROM water_level_log
-        WHERE status IN ('Removing Water', 'Adding Water')
-        AND DATE(datetime(timestamp / 1000, 'unixepoch')) = CURRENT_DATE   -- Filter by specific date
-        ORDER BY timestamp DESC  -- Sort in descending order to get the most recent data
-        LIMIT 5;  -- Limit to the 5 most recent rows
+        WITH Filtered AS (
+            SELECT 
+                datetime(timestamp / 1000, 'unixepoch') AS day,  
+                timestamp, 
+                water_level, 
+                status,
+                LAG(timestamp) OVER (PARTITION BY status ORDER BY timestamp DESC) AS prev_timestamp
+            FROM water_level_log
+            WHERE status IN ('Removing Water', 'Adding Water')
+            AND DATE(datetime(timestamp / 1000, 'unixepoch')) = CURRENT_DATE
+        )
+        SELECT day, timestamp, water_level, status
+        FROM Filtered
+        WHERE prev_timestamp IS NULL OR (timestamp - prev_timestamp) >= 600000  -- Only include if at least 10 minutes have passed
+        ORDER BY timestamp DESC
+        LIMIT 5;
     '''
     
     # Execute the query and return the results
@@ -256,16 +267,22 @@ def get_water_level_status_for_day():
 # Fetch ph level status for the current day with specific statuses
 def get_ph_level_status_for_day():
     query = '''
-        SELECT 
-        datetime(timestamp / 1000, 'unixepoch') AS day,  -- Convert Unix timestamp (milliseconds) to a readable date
-        timestamp, 
-        ph, 
-        status
-        FROM ph_level_log
-        WHERE status IN ('Acidic | Adding pH UP', 'Alkaline | Adding pH Down')
-        AND DATE(datetime(timestamp / 1000, 'unixepoch')) = CURRENT_DATE   -- Filter by specific date
-        ORDER BY timestamp DESC  -- Sort in descending order to get the most recent data
-        LIMIT 5;  -- Limit to the 5 most recent rows
+        WITH Filtered AS (
+            SELECT 
+                datetime(timestamp / 1000, 'unixepoch') AS day,  
+                timestamp, 
+                ph, 
+                status,
+                LAG(timestamp) OVER (PARTITION BY status ORDER BY timestamp DESC) AS prev_timestamp
+            FROM ph_level_log
+            WHERE status IN ('Acidic | Adding pH UP', 'Alkaline | Adding pH Down')
+            AND DATE(datetime(timestamp / 1000, 'unixepoch')) = CURRENT_DATE
+        )
+        SELECT day, timestamp, ph, status
+        FROM Filtered
+        WHERE prev_timestamp IS NULL OR (timestamp - prev_timestamp) >= 600000  -- Only include if at least 10 minutes have passed
+        ORDER BY timestamp DESC
+        LIMIT 5;
     '''
     
     # Execute the query and return the results
@@ -273,3 +290,34 @@ def get_ph_level_status_for_day():
     
     # Return the fetched data
     return [[row["day"], row["timestamp"], row["ph"], row["status"]] for row in rows] if rows else []
+
+def save_dead_fish_detection(timestamp, confidence):
+    query = "INSERT INTO dead_fish_log (timestamp, confidence) VALUES (?, ?)"
+    execute_with_retry(query, (timestamp, confidence), fetch=False)
+
+def get_dead_fish_detections():
+    query = """
+        WITH RankedDetections AS (
+            SELECT 
+                timestamp, confidence,
+                MAX(confidence) OVER (PARTITION BY DATE(datetime(timestamp / 1000, 'unixepoch', 'localtime'))) AS max_confidence
+            FROM dead_fish_log
+            WHERE DATE(datetime(timestamp / 1000, 'unixepoch', 'localtime')) = DATE('now', 'localtime')
+        )
+        SELECT timestamp, confidence 
+        FROM RankedDetections 
+        WHERE confidence = max_confidence
+        ORDER BY timestamp ASC
+        LIMIT 1
+    """
+    rows = execute_with_retry(query)
+    return {"timestamp": rows[0]["timestamp"], "confidence": rows[0]["confidence"]} if rows else {}
+
+def save_fish_change_event(timestamp, previous_fish, new_fish):
+    query = "INSERT INTO fish_change_log (timestamp, previous_fish, new_fish) VALUES (?, ?, ?)"
+    execute_with_retry(query, (timestamp, previous_fish, new_fish), fetch=False)
+
+def get_fish_change_events():
+    query = "SELECT timestamp, previous_fish, new_fish FROM fish_change_log ORDER BY timestamp DESC LIMIT 10"
+    rows = execute_with_retry(query)
+    return [[row["timestamp"], row["previous_fish"], row["new_fish"]] for row in rows] if rows else []

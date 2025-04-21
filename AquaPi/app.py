@@ -28,6 +28,8 @@ from database import (
     close_db,
     get_water_level_status_for_day,
     get_ph_level_status_for_day,
+    get_dead_fish_detections,
+    get_fish_change_events,
     save_temp_data,
     save_water_level_data,
     save_ph_level_data,
@@ -78,43 +80,58 @@ sensor_data = {
 def read_sensors():
     with app.app_context():
         while True:
-            timestamp = int(time.time() * 1000)  # Generate a single timestamp
+            # Get the current time in seconds
+            current_time = int(time.time())
 
+            # Force it to align with the previous full minute while keeping the seconds part
+            fixed_timestamp = (current_time // 60) * 60 + (current_time % 60)
+
+            # Convert to milliseconds
+            timestamp = fixed_timestamp * 1000  # Ensures timestamp is a whole number
+            
             _, celsius, fahrenheit, status = read_water_temperature(timestamp)
             if celsius is not None:
                 sensor_data["temperature"] = (timestamp, celsius, fahrenheit, status)
-                print(f"[DEBUG] Updated temperature: {sensor_data['temperature']}")
+                #print(f"[DEBUG] Updated temperature: {sensor_data['temperature']}")
 
             _, water_level, status = read_water_sensor(timestamp)
             if water_level is not None:
                 sensor_data["water_level"] = (timestamp, water_level, status)
-                print(f"[DEBUG] Updated water level: {sensor_data['water_level']}")
+                #print(f"[DEBUG] Updated water level: {sensor_data['water_level']}")
 
             _, ph, status = read_ph_level(timestamp)
             if ph is not None:
                 sensor_data["ph"] = (timestamp, ph, status)
-                print(f"[DEBUG] Updated pH: {sensor_data['ph']}")
+                #print(f"[DEBUG] Updated pH: {sensor_data['ph']}")
 
             _, turbidity, status = read_turbidity(timestamp)
             if turbidity is not None:
                 sensor_data["turbidity"] = (timestamp, turbidity, status)
-                print(f"[DEBUG] Updated turbidity: {sensor_data['turbidity']}")
+                #print(f"[DEBUG] Updated turbidity: {sensor_data['turbidity']}")
 
             # If new detected objects are found, update them
             if Camera.detected_objects:
                 sensor_data["detected_objects"] = (timestamp, Camera.detected_objects)
-                print(f"[DEBUG] Updated detected objects: {sensor_data['detected_objects']}")
+                #print(f"[DEBUG] Updated detected objects: {sensor_data['detected_objects']}")
                 Camera.detected_objects = []  # Clear after storing
-            elif sensor_data["detected_objects"]:
+            #elif sensor_data["detected_objects"]:
                 # Do not clear detected_objects; retain the last valid value
-                print("[DEBUG] No new detections, keeping previous detected objects.")
+                #print("[DEBUG] No new detections, keeping previous detected objects.")
 
             time.sleep(1)  # Adjust sampling rate
 
 def periodic_tasks():
     with app.app_context():
         while True:
-            timestamp = int(time.time() * 1000)  # Ensures timestamp is a whole number
+            # Get the current time in seconds
+            current_time = int(time.time())
+
+            # Force it to align with the previous full minute while keeping the seconds part
+            fixed_timestamp = (current_time // 60) * 60 + (current_time % 60)
+
+            # Convert to milliseconds
+            timestamp = fixed_timestamp * 1000  # Ensures timestamp is a whole number
+            
             print(f"[DEBUG] Running periodic_tasks at {timestamp}")  # Debug log
 
             try:
@@ -125,7 +142,7 @@ def periodic_tasks():
                     print(f"[DEBUG] Temp Data Saved: {sensor_data['temperature']}")
 
                 if sensor_data["water_level"] is not None:
-                    ts, water_level = sensor_data["water_level"]
+                    ts, water_level, status = sensor_data["water_level"]
                     save_water_level_data(timestamp, water_level, status)
                     print(f"[DEBUG] Water Level Data Saved: {sensor_data['water_level']}")
 
@@ -248,7 +265,8 @@ def feeder():
 
 @app.route("/settings")
 def settings():
-    return render_template("settings.html")
+    fish_type = request.args.get("fishType")
+    return render_template("settings.html", fishType=fish_type)
 
 @app.route("/get_temperature", methods=["GET"])
 def get_temperature():
@@ -372,7 +390,9 @@ def detect_objects():
 
 @app.route("/get_all_data", methods=["GET"])
 def get_all_data_endpoint():
-    data = get_all_data()
+    fish_type = request.args.get("fishType")  # Get the fishType parameter from the request
+    data = get_all_data(fish_type)  # Pass it to the function
+
     if data:
         return jsonify(data)
     return jsonify({"error": "No data found"}), 404
@@ -405,6 +425,18 @@ def get_combined_status():
 
     # Return combined data
     return jsonify(combined_data)
+
+@app.route("/get_dead_fish", methods=["GET"])
+def get_dead_fish():
+    return jsonify(get_dead_fish_detections())
+
+@app.route("/get_fish_changes", methods=["GET"])
+def get_fish_changes():
+    try:
+        fish_changes = get_fish_change_events()
+        return jsonify(fish_changes)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     atexit.register(cleanup)  # Register cleanup function
